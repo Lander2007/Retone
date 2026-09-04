@@ -100,30 +100,10 @@ body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
   --rt-seed: #6750A4;
 }
 
-/* FAB blob morphing shape */
-@keyframes blobMorph {
-  0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
-  25%       { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
-  50%       { border-radius: 50% 60% 30% 60% / 30% 70% 60% 40%; }
-  75%       { border-radius: 60% 40% 60% 30% / 70% 30% 40% 60%; }
-}
-
-.fab-blob {
-  animation: blobMorph 6s ease-in-out infinite;
-}
-
-/* Shimmer animation for palette */
-@keyframes shimmer {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
-}
-
-.swatch-new { animation: shimmer 0.6s ease-out; }
-
-/* Accessible focus — 2px ring with 3:1 state contrast (ux: focus-states) */
+/* Accessible focus — 2px ring with 3:1 state contrast (ux: focus-states).
+   Drawn from the canonical Material vars so the ring itself retones. */
 .retone-app :is(a, button, input, [tabindex]):focus-visible {
-  outline: 2px solid var(--rt-p);
+  outline: 2px solid var(--md-sys-color-primary, var(--rt-p));
   outline-offset: 3px;
   border-radius: 8px;
 }
@@ -136,8 +116,8 @@ body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
   z-index: 100;
   padding: 10px 16px;
   border-radius: 999px;
-  background: var(--rt-p);
-  color: var(--rt-op);
+  background: var(--md-sys-color-primary, var(--rt-p));
+  color: var(--md-sys-color-on-primary, var(--rt-op));
   font-size: 14px;
   font-weight: 600;
   transition: top 200ms ease;
@@ -266,14 +246,8 @@ body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
   display: block;
 }
 
-/* Reduced motion: kill blob, shimmer, theme fades become instant */
+/* Reduced motion: morphs and theme fades become instant */
 @media (prefers-reduced-motion: reduce) {
-  .fab-blob {
-    animation: none;
-  }
-  .swatch-new {
-    animation: none;
-  }
   .theme-transition,
   .theme-transition * {
     transition-duration: 0.01ms !important;
