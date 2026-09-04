@@ -1,4 +1,10 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import {
+  generateTonalPalette,
+  generateTheme,
+  getEngineTheme,
+  applyThemeRoles,
+} from "./lib/materialEngine";
 
 // ─── HCT-approximate Color Engine ───────────────────────────────────────────
 
@@ -82,68 +88,15 @@ export interface ThemeRoles {
   seed: string;
 }
 
-function generateTonalPalette(seedHex: string): TonalPalette[] {
-  const [r, g, b] = hexToRgb(seedHex);
-  const [hue, sat] = rgbToHsl(r, g, b);
-  const maxChroma = Math.min(sat, 80); // cap chroma
-
-  const tones = [0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100];
-  return tones.map((tone) => {
-    const chroma = chromaScale(tone, maxChroma);
-    const lightness = tone; // tone maps linearly to lightness
-    const [rr, gg, bb] = hslToRgb(hue, chroma, lightness);
-    return { tone, hex: rgbToHex(rr, gg, bb) };
-  });
-}
-
-function generateTheme(seedHex: string): ThemeRoles {
-  const [r, g, b] = hexToRgb(seedHex);
-  const [hue, sat] = rgbToHsl(r, g, b);
-  const maxChroma = Math.min(sat, 80);
-
-  const tone = (t: number) => {
-    const chroma = chromaScale(t, maxChroma);
-    const [rr, gg, bb] = hslToRgb(hue, chroma, t);
-    return rgbToHex(rr, gg, bb);
-  };
-
-  return {
-    primary: tone(80),
-    onPrimary: tone(20),
-    primaryContainer: tone(30),
-    onPrimaryContainer: tone(90),
-    secondary: tone(75),
-    onSecondary: tone(18),
-    surface: tone(8),
-    surface1: tone(11),
-    surface2: tone(14),
-    surface3: tone(17),
-    onSurface: tone(92),
-    onSurfaceVariant: tone(78),
-    outline: tone(55),
-    error: "#FFB4AB",
-    seed: seedHex,
-  };
-}
+// ─── Theme application ────────────────────────────────────────────────────────
+// Roles come from the real HCT engine (see lib/materialEngine). Canonical
+// `--md-sys-color-*` vars are written first; legacy `--rt-*` aliases follow
+// so existing components keep working untouched.
 
 function applyTheme(theme: ThemeRoles) {
   const root = document.querySelector(".retone-app") as HTMLElement;
   if (!root) return;
-  root.style.setProperty("--rt-p", theme.primary);
-  root.style.setProperty("--rt-op", theme.onPrimary);
-  root.style.setProperty("--rt-pc", theme.primaryContainer);
-  root.style.setProperty("--rt-opc", theme.onPrimaryContainer);
-  root.style.setProperty("--rt-s", theme.secondary);
-  root.style.setProperty("--rt-os", theme.onSecondary);
-  root.style.setProperty("--rt-surf", theme.surface);
-  root.style.setProperty("--rt-surf1", theme.surface1);
-  root.style.setProperty("--rt-surf2", theme.surface2);
-  root.style.setProperty("--rt-surf3", theme.surface3);
-  root.style.setProperty("--rt-onsf", theme.onSurface);
-  root.style.setProperty("--rt-osv", theme.onSurfaceVariant);
-  root.style.setProperty("--rt-outline", theme.outline);
-  root.style.setProperty("--rt-err", theme.error);
-  root.style.setProperty("--rt-seed", theme.seed);
+  applyThemeRoles(root, getEngineTheme(theme.seed));
 }
 
 // ─── Dominant color extraction from image ────────────────────────────────────
@@ -225,6 +178,23 @@ function HeroSection({
     [onSeedChange]
   );
 
+  const handleFileInput = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !file.type.startsWith("image/")) return;
+      const url = URL.createObjectURL(file);
+      setDropImg(url);
+      const img = new Image();
+      img.onload = () => {
+        const color = extractDominantColor(img);
+        onSeedChange(color);
+        setActivePreset(null);
+      };
+      img.src = url;
+    },
+    [onSeedChange]
+  );
+
   const pickPreset = (name: string, hex: string) => {
     setActivePreset(name);
     setDropImg(null);
@@ -234,7 +204,7 @@ function HeroSection({
   return (
     <section
       className="relative min-h-screen flex flex-col justify-center overflow-hidden"
-      style={{ background: "var(--rt-surf)" }}
+      style={{ background: "var(--rt-surf)", minHeight: "100dvh" }}
     >
       {/* Ambient gradient */}
       <div
@@ -254,7 +224,7 @@ function HeroSection({
       />
 
       {/* Nav */}
-      <nav className="absolute top-0 left-0 right-0 flex items-center justify-between px-10 py-6 z-10">
+      <nav aria-label="Primary" className="absolute top-0 left-0 right-0 flex items-center justify-between px-5 md:px-10 py-6 z-10">
         <span
           className="font-display text-xl font-700 tracking-tight"
           style={{ color: "var(--rt-p)", fontWeight: 700 }}
@@ -279,7 +249,7 @@ function HeroSection({
       </nav>
 
       {/* Hero Content */}
-      <div className="relative z-10 max-w-7xl mx-auto w-full px-10 pt-28 pb-16">
+      <div className="relative z-10 max-w-7xl mx-auto w-full px-5 md:px-10 pt-28 pb-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           {/* Left copy */}
           <div>
@@ -338,9 +308,12 @@ function HeroSection({
               {PRESET_SEEDS.map(({ name, hex }) => (
                 <button
                   key={name}
+                  type="button"
+                  aria-pressed={activePreset === name}
                   onClick={() => pickPreset(name, hex)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-all"
+                  className="touch-hit flex items-center gap-2 px-4 py-2 rounded-full text-xs transition-all"
                   style={{
+                    minHeight: 36,
                     background:
                       activePreset === name ? "var(--rt-pc)" : "var(--rt-surf2)",
                     color:
@@ -354,6 +327,7 @@ function HeroSection({
                   <span
                     className="w-3 h-3 rounded-full"
                     style={{ background: hex }}
+                    aria-hidden="true"
                   />
                   {name}
                 </button>
@@ -392,7 +366,7 @@ function HeroSection({
 
               <div className="flex items-center gap-5">
                 <div
-                  className="relative flex-shrink-0 rounded-full overflow-hidden glow-hover"
+                  className="seed-ring relative flex-shrink-0 rounded-full overflow-hidden glow-hover"
                   style={{
                     width: 80,
                     height: 80,
@@ -404,6 +378,7 @@ function HeroSection({
                   <input
                     type="color"
                     value={seed}
+                    aria-label="Pick seed color"
                     onChange={(e) => {
                       setActivePreset(null);
                       onSeedChange(e.target.value);
@@ -413,6 +388,7 @@ function HeroSection({
                     style={{ width: "100%", height: "100%" }}
                   />
                   <div
+                    aria-hidden="true"
                     className="absolute inset-0 rounded-full pointer-events-none flex items-center justify-center"
                     style={{ background: seed }}
                   />
@@ -443,13 +419,13 @@ function HeroSection({
               </div>
             </div>
 
-            {/* Image Drop Zone */}
+            {/* Image Drop Zone — drag + keyboard/browse alternative */}
             <div
               ref={dropRef}
               onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={handleDrop}
-              className="rounded-3xl transition-all cursor-default"
+              className="rounded-3xl transition-all"
               style={{
                 border: `2px dashed ${dragging ? "var(--rt-p)" : "var(--rt-surf3)"}`,
                 background: dragging
@@ -463,13 +439,14 @@ function HeroSection({
               {dropImg ? (
                 <img
                   src={dropImg}
-                  alt="Dropped image for color extraction"
+                  alt="Dropped image used for palette extraction"
                   className="w-full h-40 object-cover"
                   style={{ borderRadius: 22 }}
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center h-36 gap-2">
+                <div className="flex flex-col items-center justify-center h-auto min-h-36 gap-2 py-6 px-4 text-center">
                   <svg
+                    aria-hidden="true"
                     width="28"
                     height="28"
                     viewBox="0 0 24 24"
@@ -485,18 +462,43 @@ function HeroSection({
                   <span className="text-sm" style={{ color: "var(--rt-outline)" }}>
                     Drop a photo to extract its palette
                   </span>
-                  <span className="text-xs" style={{ color: "var(--rt-surf3)", color: "var(--rt-outline)", opacity: 0.6 }}>
+                  <label
+                    className="text-xs px-4 py-2 rounded-full"
+                    style={{
+                      minHeight: 36,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      background: "var(--rt-surf3)",
+                      color: "var(--rt-p)",
+                      border: "1px solid var(--rt-outline)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    or browse files
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      aria-label="Upload a photo to extract its palette"
+                      onChange={handleFileInput}
+                      style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}
+                    />
+                  </label>
+                  <span className="text-xs" style={{ color: "var(--rt-outline)", opacity: 0.6 }}>
                     JPG, PNG, WebP
                   </span>
                 </div>
               )}
+              <span aria-live="polite" className="sr-only">
+                {dragging ? "Release to extract palette" : ""}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Scroll indicator */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+      <div aria-hidden="true" className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
         <span className="text-xs" style={{ color: "var(--rt-outline)", fontFamily: "var(--font-mono)" }}>
           scroll
         </span>
@@ -513,7 +515,7 @@ function PalettePanel({ seed }: { seed: string }) {
   const palette = useMemo(() => generateTonalPalette(seed), [seed]);
 
   return (
-    <section id="palette" className="py-24 px-10" style={{ background: "var(--rt-surf1)" }}>
+    <section id="palette" className="py-24 px-5 md:px-10" style={{ background: "var(--rt-surf1)" }}>
       <div className="max-w-7xl mx-auto">
         <div className="flex items-end justify-between mb-10">
           <div>
@@ -543,7 +545,11 @@ function PalettePanel({ seed }: { seed: string }) {
         </div>
 
         {/* Tone ramp */}
-        <div className="flex gap-1.5 mb-10 overflow-x-auto pb-2">
+        <div
+          role="img"
+          aria-label={`13-step tonal ramp derived from seed ${seed}. Hex values listed below.`}
+          className="flex gap-1.5 mb-10 overflow-x-auto pb-2"
+        >
           {palette.map(({ tone, hex }) => (
             <div key={tone} className="flex flex-col items-center gap-2 min-w-0 flex-1">
               <div
@@ -635,7 +641,7 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
   return (
     <section
       id="showcase"
-      className="py-24 px-10"
+      className="py-24 px-5 md:px-10"
       style={{ background: "var(--rt-surf)" }}
     >
       <div className="max-w-7xl mx-auto">
@@ -671,43 +677,34 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
               <div className="flex flex-col gap-3">
                 {/* Filled */}
                 <button
-                  className="w-full py-3 rounded-full text-sm font-600 transition-all active:scale-95"
+                  type="button"
+                  className="btn-themed w-full py-3 rounded-full text-sm font-600 transition-all active:scale-95"
                   style={{
                     background: "var(--rt-p)",
                     color: "var(--rt-op)",
                     fontWeight: 600,
                     fontFamily: "var(--font-body)",
                   }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.filter = "brightness(1.12)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.filter = "brightness(1)")
-                  }
                 >
                   Filled — Primary action
                 </button>
                 {/* Tonal */}
                 <button
-                  className="w-full py-3 rounded-full text-sm font-600 transition-all active:scale-95"
+                  type="button"
+                  className="btn-themed w-full py-3 rounded-full text-sm font-600 transition-all active:scale-95"
                   style={{
                     background: "var(--rt-pc)",
                     color: "var(--rt-opc)",
                     fontWeight: 600,
                     fontFamily: "var(--font-body)",
                   }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.filter = "brightness(1.12)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.filter = "brightness(1)")
-                  }
                 >
                   Tonal — Secondary action
                 </button>
                 {/* Outlined */}
                 <button
-                  className="w-full py-3 rounded-full text-sm font-600 transition-all active:scale-95"
+                  type="button"
+                  className="btn-themed w-full py-3 rounded-full text-sm font-600 transition-all active:scale-95"
                   style={{
                     background: "transparent",
                     color: "var(--rt-p)",
@@ -715,32 +712,19 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                     fontWeight: 600,
                     fontFamily: "var(--font-body)",
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "color-mix(in srgb, var(--rt-p) 10%, transparent)";
-                    e.currentTarget.style.borderColor = "var(--rt-p)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.borderColor = "var(--rt-outline)";
-                  }}
                 >
                   Outlined — Tertiary
                 </button>
                 {/* Text */}
                 <button
-                  className="w-full py-3 rounded-full text-sm transition-all active:scale-95"
+                  type="button"
+                  className="btn-themed w-full py-3 rounded-full text-sm transition-all active:scale-95"
                   style={{
                     background: "transparent",
                     color: "var(--rt-p)",
                     fontWeight: 500,
                     fontFamily: "var(--font-body)",
                   }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "color-mix(in srgb, var(--rt-p) 10%, transparent)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
                 >
                   Text — Subtle action
                 </button>
@@ -759,12 +743,18 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                 Floating Action Button
               </p>
               <button
+                type="button"
+                aria-label="Create new theme from current seed"
                 onMouseEnter={() => setFabHovered(true)}
                 onMouseLeave={() => setFabHovered(false)}
+                onFocus={() => setFabHovered(true)}
+                onBlur={() => setFabHovered(false)}
                 className="fab-blob flex items-center justify-center transition-all active:scale-90"
                 style={{
                   width: 80,
                   height: 80,
+                  minWidth: 80,
+                  minHeight: 80,
                   background: "var(--rt-pc)",
                   color: "var(--rt-opc)",
                   boxShadow: fabHovered
@@ -775,7 +765,7 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                 }}
                 title="FAB — organic blob shape"
               >
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
@@ -835,8 +825,9 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                   accessible contrast at every tone.
                 </p>
                 <button
+                  type="button"
                   className="mt-4 text-sm font-500 transition-opacity hover:opacity-80"
-                  style={{ color: "var(--rt-p)", fontWeight: 500 }}
+                  style={{ color: "var(--rt-p)", fontWeight: 500, minHeight: 44 }}
                 >
                   Explore system →
                 </button>
@@ -853,10 +844,11 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
             >
               <div className="flex items-center gap-3 mb-2">
                 <div
+                  aria-hidden="true"
                   className="w-8 h-8 rounded-full flex items-center justify-center"
                   style={{ background: "#B3261E" }}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFB4AB" strokeWidth="2">
+                  <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFB4AB" strokeWidth="2">
                     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                     <line x1="12" y1="9" x2="12" y2="13" />
                     <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -900,12 +892,17 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                   </p>
                 </div>
                 <button
+                  type="button"
+                  role="switch"
+                  aria-checked={darkMode}
+                  aria-label="Toggle dark mode"
                   onClick={() => setDarkMode(!darkMode)}
-                  className="relative transition-all"
+                  className="touch-hit relative transition-all"
                   style={{
                     width: 52,
-                    height: 30,
-                    borderRadius: 15,
+                    height: 32,
+                    minHeight: 32,
+                    borderRadius: 16,
                     background: darkMode ? "var(--rt-p)" : "var(--rt-outline)",
                     border: "none",
                     cursor: "pointer",
@@ -946,12 +943,16 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                     </p>
                   </div>
                   <button
+                    type="button"
+                    role="switch"
+                    aria-checked={toggles[key]}
+                    aria-label={label}
                     onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}
-                    className="relative"
+                    className="touch-hit relative"
                     style={{
                       width: 52,
-                      height: 30,
-                      borderRadius: 15,
+                      height: 32,
+                      borderRadius: 16,
                       background: toggles[key] ? "var(--rt-p)" : "var(--rt-surf3)",
                       border: "none",
                       cursor: "pointer",
@@ -1101,7 +1102,7 @@ function AlternateThemePreview({ hex, name }: { hex: string; name: string }) {
 function Footer({ seed }: { seed: string }) {
   return (
     <footer
-      className="py-12 px-10"
+      className="py-12 px-5 md:px-10"
       style={{ background: "var(--rt-surf1)", borderTop: "1px solid var(--rt-surf3)" }}
     >
       <div
@@ -1157,13 +1158,17 @@ export default function App() {
 
   return (
     <div className="retone-app theme-transition min-h-screen" style={{ background: "var(--rt-surf)" }}>
+      <a href="#main" className="skip-link">
+        Skip to main content
+      </a>
       <HeroSection seed={seed} onSeedChange={setSeed} />
+      <main id="main">
       <PalettePanel seed={seed} />
       <ComponentShowcase theme={theme} />
 
       {/* Alternate Theme Section */}
       <section
-        className="py-24 px-10"
+        className="py-24 px-5 md:px-10"
         style={{ background: "var(--rt-surf1)" }}
       >
         <div className="max-w-7xl mx-auto">
@@ -1191,6 +1196,7 @@ export default function App() {
           </div>
         </div>
       </section>
+      </main>
 
       <Footer seed={seed} />
     </div>
