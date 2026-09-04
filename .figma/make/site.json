@@ -1,0 +1,10 @@
+{
+  "description": "Explore dynamic theming with an interactive color engine that adapts UI elements in real-time, perfect for designers seeking inspiration and customization.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
