@@ -3,9 +3,15 @@ import {
   generateTonalPalette,
   generateTheme,
   getEngineTheme,
+  getHueRamps,
+  auditContrast,
   applyThemeRoles,
   transitionTheme,
   prefersReducedMotion,
+  VARIANT_LABELS,
+  type SchemeVariant,
+  type ColorMode,
+  type RoleKey,
 } from "./lib/materialEngine";
 
 // ─── HCT-approximate Color Engine ───────────────────────────────────────────
@@ -157,20 +163,27 @@ const PRESET_SEEDS = [
   { name: "Rose", hex: "#AD1457" },
 ];
 
-const TONE_ROLES: Record<number, string> = {
-  0: "Black",
-  10: "On-Primary",
-  20: "Primary Cont.",
-  30: "Secondary Cont.",
-  40: "—",
-  50: "Outline",
-  60: "Outline Var.",
-  70: "On-Surf. Var.",
-  80: "Primary",
-  90: "On-Prim. Cont.",
-  95: "Surface Var.",
-  100: "White",
-};
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Clipboard API unavailable (permissions / insecure context) — legacy path.
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
 
 // ─── Sections ────────────────────────────────────────────────────────────────
 
@@ -538,8 +551,66 @@ function HeroSection({
   );
 }
 
-function PalettePanel({ seed }: { seed: string }) {
-  const palette = useMemo(() => generateTonalPalette(seed), [seed]);
+const RAMP_FAMILIES = [
+  { key: "primary", label: "Primary" },
+  { key: "secondary", label: "Secondary" },
+  { key: "tertiary", label: "Tertiary" },
+  { key: "neutral", label: "Neutral" },
+  { key: "neutral-variant", label: "Neutral Variant" },
+  { key: "error", label: "Error" },
+] as const;
+
+/** Container/on-container pairs the inspector proves with live badges. */
+const PAIR_CARDS: Array<{ bg: RoleKey; fg: RoleKey; title: string }> = [
+  { bg: "primary", fg: "on-primary", title: "Primary" },
+  { bg: "primary-container", fg: "on-primary-container", title: "Primary container" },
+  { bg: "secondary-container", fg: "on-secondary-container", title: "Secondary container" },
+  { bg: "tertiary-container", fg: "on-tertiary-container", title: "Tertiary container" },
+  { bg: "error-container", fg: "on-error-container", title: "Error container" },
+  { bg: "surface", fg: "on-surface", title: "Surface" },
+];
+
+function ContrastBadge({ ratio }: { ratio: number }) {
+  const aaa = ratio >= 7;
+  const aa = ratio >= 4.5;
+  const label = aaa ? "AAA" : aa ? "AA" : "Low";
+  return (
+    <span
+      className="text-xs px-2 py-0.5 rounded-full"
+      style={{
+        background: aa ? "color-mix(in srgb, #22C55E 18%, transparent)" : "color-mix(in srgb, #EF4444 18%, transparent)",
+        color: aa ? "#4ADE80" : "#FCA5A5",
+        border: `1px solid ${aa ? "color-mix(in srgb, #22C55E 40%, transparent)" : "color-mix(in srgb, #EF4444 40%, transparent)"}`,
+        fontFamily: "var(--font-mono)",
+        fontWeight: 600,
+      }}
+      title={`Contrast ratio ${ratio.toFixed(2)}:1`}
+    >
+      {label} · {ratio.toFixed(1)}
+    </span>
+  );
+}
+
+function PalettePanel({
+  seed,
+  variant = "tonal-spot",
+  mode = "dark",
+}: {
+  seed: string;
+  variant?: SchemeVariant;
+  mode?: ColorMode;
+}) {
+  const ramps = useMemo(() => getHueRamps(seed, variant, mode), [seed, variant, mode]);
+  const theme = useMemo(() => getEngineTheme(seed, variant, mode), [seed, variant, mode]);
+  const checks = useMemo(() => auditContrast(theme.roles), [theme]);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copy = useCallback(async (key: string, text: string) => {
+    if (await copyText(text)) {
+      setCopied(key);
+      window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1400);
+    }
+  }, []);
 
   return (
     <section id="palette" className="py-24 px-5 md:px-10" style={{ background: "var(--rt-surf1)" }}>
@@ -550,13 +621,13 @@ function PalettePanel({ seed }: { seed: string }) {
               className="text-xs mb-2 tracking-widest uppercase"
               style={{ color: "var(--rt-p)", fontFamily: "var(--font-mono)" }}
             >
-              System / Tonal Palette
+              System / Tonal Palettes
             </p>
             <h2
               className="font-display text-4xl font-bold"
               style={{ color: "var(--rt-onsf)", fontWeight: 700 }}
             >
-              13-Step Tonal Ramp
+              Every hue, 0–100
             </h2>
           </div>
           <span
@@ -567,93 +638,99 @@ function PalettePanel({ seed }: { seed: string }) {
               fontFamily: "var(--font-mono)",
             }}
           >
-            HCT · Seed {seed.toUpperCase()}
+            {VARIANT_LABELS[variant]} · {mode} · {seed.toUpperCase()}
           </span>
         </div>
 
-        {/* Tone ramp */}
-        <div
-          role="img"
-          aria-label={`13-step tonal ramp derived from seed ${seed}. Hex values listed below.`}
-          className="flex gap-1.5 mb-10 overflow-x-auto pb-2"
-        >
-          {palette.map(({ tone, hex }) => (
-            <div key={tone} className="flex flex-col items-center gap-2 min-w-0 flex-1">
+        {/* Per-hue ramps — hover reveals hex, click copies it */}
+        <div className="flex flex-col gap-4 mb-12">
+          {RAMP_FAMILIES.map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-4">
+              <span
+                className="text-xs shrink-0 hidden sm:block"
+                style={{ width: 120, color: "var(--rt-outline)", fontFamily: "var(--font-mono)" }}
+              >
+                {label}
+              </span>
               <div
-                className="w-full rounded-2xl swatch-new"
-                style={{
-                  height: 80,
-                  background: hex,
-                  transition: "background var(--transition-theme)",
-                  minWidth: 48,
-                }}
-                title={`Tone ${tone}: ${hex}`}
-              />
-              <span
-                className="text-xs leading-tight text-center"
-                style={{ color: "var(--rt-outline)", fontFamily: "var(--font-mono)" }}
+                role="group"
+                aria-label={`${label} tonal ramp, tones 0 to 100. Activate a swatch to copy its hex.`}
+                className="flex gap-1 flex-1 overflow-x-auto pb-1"
               >
-                {tone}
-              </span>
-              <span
-                className="text-xs leading-tight text-center"
-                style={{
-                  color: "var(--rt-osv)",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "0.65rem",
-                }}
-              >
-                {hex.toUpperCase()}
-              </span>
+                {ramps[key].map(({ tone, hex }) => (
+                  <button
+                    key={tone}
+                    type="button"
+                    title={`${label} ${tone} · ${hex.toUpperCase()} — copy hex`}
+                    aria-label={`${label} tone ${tone}, ${hex.toUpperCase()}. Copy hex.`}
+                    onClick={() => copy(`${key}-${tone}`, hex.toUpperCase())}
+                    className="group relative flex-1 rounded-xl transition-transform hover:-translate-y-0.5"
+                    style={{ background: hex, minWidth: 40, height: 56 }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-x-0 bottom-1 text-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity"
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: "0.55rem",
+                        color: tone < 50 ? "#fff" : "#000",
+                      }}
+                    >
+                      {copied === `${key}-${tone}` ? "copied" : hex.toUpperCase()}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           ))}
         </div>
 
-        {/* Role grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          {palette
-            .filter(({ tone }) => [10, 20, 30, 50, 80, 90, 95].includes(tone))
-            .map(({ tone, hex }) => {
-              const role = TONE_ROLES[tone] || "—";
-              const textColor =
-                tone < 50
-                  ? palette.find((p) => p.tone === 90)?.hex || "#fff"
-                  : palette.find((p) => p.tone === 10)?.hex || "#000";
-              return (
-                <div
-                  key={tone}
-                  className="rounded-2xl p-4"
-                  style={{
-                    background: hex,
-                    transition: "background var(--transition-theme)",
-                  }}
-                >
-                  <p
-                    className="text-xs font-600 mb-1"
-                    style={{ color: textColor, fontWeight: 600, opacity: 0.8 }}
-                  >
-                    {role}
+        {/* Container/on-container proof cards with live contrast badges */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {PAIR_CARDS.map(({ bg, fg, title }) => {
+            const bgHex = theme.roles[bg];
+            const fgHex = theme.roles[fg];
+            const check = checks.find(
+              (c) => c.fg === fgHex && c.bg === bgHex,
+            );
+            const varName = `var(--md-sys-color-${bg})`;
+            return (
+              <div
+                key={bg}
+                className="rounded-2xl p-5"
+                style={{ background: bgHex, transition: "background var(--transition-theme)" }}
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <p className="text-sm font-600" style={{ color: fgHex, fontWeight: 600 }}>
+                    {title}
                   </p>
-                  <p
-                    className="text-xs"
-                    style={{
-                      color: textColor,
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.65rem",
-                      opacity: 0.7,
-                    }}
-                  >
-                    {hex.toUpperCase()}
-                  </p>
-                  <p
-                    className="text-xs mt-1"
-                    style={{ color: textColor, opacity: 0.5, fontSize: "0.6rem" }}
-                  >
-                    Tone {tone}
-                  </p>
+                  {check && <ContrastBadge ratio={check.ratio} />}
                 </div>
-              );
-            })}
+                <p
+                  className="text-sm leading-relaxed mb-4"
+                  style={{ color: fgHex, opacity: 0.85, lineHeight: 1.6 }}
+                >
+                  On-container text stays legible at every seed.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => copy(`pair-${bg}`, varName)}
+                  className="text-xs px-3 py-1.5 rounded-full transition-opacity hover:opacity-90"
+                  style={{
+                    minHeight: 36,
+                    background: "rgba(0,0,0,0.28)",
+                    color: fgHex,
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    fontFamily: "var(--font-mono)",
+                  }}
+                  aria-label={`Copy CSS variable name ${varName}`}
+                  title="Copy CSS variable name"
+                >
+                  {copied === `pair-${bg}` ? "Copied ✓" : varName}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>
