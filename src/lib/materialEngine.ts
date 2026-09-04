@@ -396,6 +396,31 @@ export function ensureContrast(roles: RoleMap): { roles: RoleMap; adjusted: bool
   return { roles: out, adjusted: notes.length > 0, notes };
 }
 
+/** HCT readout for any seed hex. */
+export function seedHct(seedHex: string): HctReadout {
+  const h = Hct.fromInt(argbFromHex(seedHex));
+  return { hue: h.hue, chroma: h.chroma, tone: h.tone };
+}
+
+/** Hex for an explicit HCT coordinate (drives the hue/sat pad + ambient). */
+export function hexFromHct(hue: number, chroma: number, tone: number): string {
+  return hexFromArgb(Hct.from(hue, chroma, tone).toInt()).toUpperCase();
+}
+
+/** Interpolate two seeds through HCT (shortest hue path) — ambient settle. */
+export function lerpSeedHex(fromHex: string, toHex: string, t: number): string {
+  const a = Hct.fromInt(argbFromHex(fromHex));
+  const b = Hct.fromInt(argbFromHex(toHex));
+  const dh = ((b.hue - a.hue + 540) % 360) - 180;
+  return hexFromArgb(
+    Hct.from(
+      a.hue + dh * t,
+      a.chroma + (b.chroma - a.chroma) * t,
+      a.tone + (b.tone - a.tone) * t,
+    ).toInt(),
+  ).toUpperCase();
+}
+
 // ─── Shareable state (URL hash) ───────────────────────────────────────────────
 
 export interface ShareState {

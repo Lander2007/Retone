@@ -15,6 +15,11 @@ import {
   parseHash,
   writeHash,
   shareUrl,
+  seedHct,
+  hexFromHct,
+  lerpSeedHex,
+  ambientSeedForHour,
+  rafThrottle,
   VARIANT_LABELS,
   VARIANT_ORDER,
   type EngineTheme,
@@ -24,64 +29,7 @@ import {
   type RoleKey,
 } from "./lib/materialEngine";
 
-// ─── HCT-approximate Color Engine ───────────────────────────────────────────
-
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace("#", "");
-  return [
-    parseInt(h.slice(0, 2), 16),
-    parseInt(h.slice(2, 4), 16),
-    parseInt(h.slice(4, 6), 16),
-  ];
-}
-
-function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0;
-  const l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-      case g: h = ((b - r) / d + 2) / 6; break;
-      case b: h = ((r - g) / d + 4) / 6; break;
-    }
-  }
-  return [h * 360, s * 100, l * 100];
-}
-
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  h /= 360; s /= 100; l /= 100;
-  let r: number, g: number, b: number;
-  if (s === 0) { r = g = b = l; }
-  else {
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    const f = (t: number) => {
-      if (t < 0) t += 1; if (t > 1) t -= 1;
-      if (t < 1/6) return p + (q - p) * 6 * t;
-      if (t < 1/2) return q;
-      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-      return p;
-    };
-    r = f(h + 1/3); g = f(h); b = f(h - 1/3);
-  }
-  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  return "#" + [r, g, b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0")).join("");
-}
-
-// Simulate HCT chroma behavior: chroma peaks at mid-tones, falls to 0 at extremes
-function chromaScale(tone: number, maxChroma: number): number {
-  // HCT-like behavior: near-zero chroma at tone 0 and 100, peak around 40-70
-  const t = tone / 100;
-  const peak = 4 * t * (1 - t); // parabola 0→1→0
-  return maxChroma * Math.pow(peak, 0.6);
-}
+// ─── Legacy shapes (kept for component props; values come from the engine) ────
 
 export interface TonalPalette {
   tone: number;
@@ -176,6 +124,214 @@ async function copyText(text: string): Promise<boolean> {
 
 // ─── Sections ────────────────────────────────────────────────────────────────
 
+// Hue/sat pad: a real HCT surface (hue × chroma at tone 60) rendered once to
+// canvas. Dragging updates the seed live via rAF throttle; arrow keys step
+// hue/chroma for keyboard users.
+const PAD_W = 240;
+const PAD_H = 132;
+const PAD_CELLS_X = 60;
+const PAD_CELLS_Y = 33;
+const PAD_MAX_CHROMA = 120;
+
+function HueSatPad({
+  seed,
+  onSeedChange,
+}: {
+  seed: string;
+  onSeedChange: (hex: string) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hct = useMemo(() => seedHct(seed), [seed]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const cw = Math.ceil(PAD_W / PAD_CELLS_X);
+    const ch = Math.ceil(PAD_H / PAD_CELLS_Y);
+    for (let x = 0; x < PAD_CELLS_X; x++) {
+      for (let y = 0; y < PAD_CELLS_Y; y++) {
+        ctx.fillStyle = hexFromHct(
+          (x / (PAD_CELLS_X - 1)) * 360,
+          (1 - y / (PAD_CELLS_Y - 1)) * PAD_MAX_CHROMA,
+          60,
+        );
+        ctx.fillRect(x * cw, y * ch, cw + 1, ch + 1);
+      }
+    }
+  }, []);
+
+  const throttled = useMemo(() => rafThrottle((hex: string) => onSeedChange(hex)), [onSeedChange]);
+
+  const pickAt = useCallback(
+    (clientX: number, clientY: number, el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      const fx = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+      const fy = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+      throttled(hexFromHct(fx * 360, (1 - fy) * PAD_MAX_CHROMA, 60));
+    },
+    [throttled],
+  );
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const HUE_STEP = 4;
+      const CHROMA_STEP = 6;
+      let hue = hct.hue;
+      let chroma = hct.chroma;
+      if (e.key === "ArrowLeft") hue -= HUE_STEP;
+      else if (e.key === "ArrowRight") hue += HUE_STEP;
+      else if (e.key === "ArrowUp") chroma += CHROMA_STEP;
+      else if (e.key === "ArrowDown") chroma -= CHROMA_STEP;
+      else return;
+      e.preventDefault();
+      hue = ((hue % 360) + 360) % 360;
+      chroma = Math.min(PAD_MAX_CHROMA, Math.max(0, chroma));
+      onSeedChange(hexFromHct(hue, chroma, 60));
+    },
+    [hct, onSeedChange],
+  );
+
+  return (
+    <div
+      role="slider"
+      tabIndex={0}
+      aria-label="Hue and saturation pad. Drag or use arrow keys."
+      aria-valuetext={`Hue ${Math.round(hct.hue)} degrees, chroma ${Math.round(hct.chroma)}`}
+      onPointerDown={(e) => {
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          // Older browsers — dragging still works without capture.
+        }
+        pickAt(e.clientX, e.clientY, e.currentTarget);
+      }}
+      onPointerMove={(e) => {
+        if (e.buttons) pickAt(e.clientX, e.clientY, e.currentTarget);
+      }}
+      onKeyDown={onKeyDown}
+      className="relative w-full rounded-2xl overflow-hidden touch-none select-none"
+      style={{ border: "1px solid var(--rt-surf3)", cursor: "crosshair" }}
+    >
+      <canvas ref={canvasRef} width={PAD_W} height={PAD_H} aria-hidden="true" className="block w-full h-auto" />
+      <span
+        aria-hidden="true"
+        className="absolute w-4 h-4 rounded-full pointer-events-none"
+        style={{
+          left: `calc(${(hct.hue / 360) * 100}% - 8px)`,
+          top: `calc(${(1 - Math.min(1, hct.chroma / PAD_MAX_CHROMA)) * 100}% - 8px)`,
+          background: seed,
+          border: "2px solid rgba(255,255,255,0.8)",
+          boxShadow: "0 1px 6px rgba(0,0,0,0.6)",
+        }}
+      />
+    </div>
+  );
+}
+
+// Ambient background: slow-drifting blurred blobs in primary-container /
+// tertiary-container / primary at low opacity. Quarter-res canvas, paused
+// when hidden or under reduced motion (single static paint).
+function AmbientCanvas({
+  seed,
+  variant,
+  mode,
+}: {
+  seed: string;
+  variant: SchemeVariant;
+  mode: ColorMode;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const rolesRef = useRef(getEngineTheme(seed, variant, mode).roles);
+
+  useEffect(() => {
+    rolesRef.current = getEngineTheme(seed, variant, mode).roles;
+  }, [seed, variant, mode]);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    let raf = 0;
+    let w = 0;
+    let h = 0;
+    const resize = () => {
+      w = canvas.width = Math.max(2, Math.ceil(window.innerWidth / 4));
+      h = canvas.height = Math.max(2, Math.ceil(window.innerHeight / 4));
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    const paint = (t: number) => {
+      const r = rolesRef.current;
+      ctx.clearRect(0, 0, w, h);
+      ctx.filter = "blur(24px)";
+      ctx.globalAlpha = 0.16;
+      const blobs = [
+        {
+          c: r["primary-container"],
+          x: 0.3 + 0.12 * Math.sin(t / 9000),
+          y: 0.35 + 0.1 * Math.cos(t / 11000),
+          rad: 0.42,
+        },
+        {
+          c: r["tertiary-container"],
+          x: 0.72 + 0.1 * Math.cos(t / 8000),
+          y: 0.6 + 0.12 * Math.sin(t / 10000),
+          rad: 0.38,
+        },
+        {
+          c: r.primary,
+          x: 0.55 + 0.08 * Math.sin(t / 12000 + 2),
+          y: 0.2 + 0.06 * Math.cos(t / 9000 + 1),
+          rad: 0.22,
+        },
+      ];
+      const m = Math.max(w, h);
+      for (const b of blobs) {
+        const g = ctx.createRadialGradient(b.x * w, b.y * h, 0, b.x * w, b.y * h, b.rad * m);
+        g.addColorStop(0, b.c);
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+      }
+      ctx.filter = "none";
+      ctx.globalAlpha = 1;
+    };
+
+    if (prefersReducedMotion()) {
+      paint(0);
+      return () => window.removeEventListener("resize", resize);
+    }
+    const loop = (t: number) => {
+      paint(t);
+      raf = requestAnimationFrame(loop);
+    };
+    const onVis = () => {
+      cancelAnimationFrame(raf);
+      if (!document.hidden) raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={ref}
+      aria-hidden="true"
+      className="fixed inset-0 w-full h-full pointer-events-none"
+      style={{ zIndex: 0, opacity: mode === "dark" ? 1 : 0.45 }}
+    />
+  );
+}
+
 function HeroSection({
   seed,
   onSeedChange,
@@ -183,6 +339,7 @@ function HeroSection({
   onVariantChange,
   contrastNotes,
   share,
+  mode,
 }: {
   seed: string;
   onSeedChange: (hex: string) => void;
@@ -190,6 +347,7 @@ function HeroSection({
   onVariantChange: (v: SchemeVariant) => void;
   contrastNotes: string[] | null;
   share: ShareState;
+  mode: ColorMode;
 }) {
   const dropRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -199,6 +357,25 @@ function HeroSection({
   const [imgError, setImgError] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>("Violet");
   const [shareCopied, setShareCopied] = useState(false);
+  const seedRamp = useMemo(
+    () => generateTonalPalette(seed, variant, mode).filter(({ tone }) => [20, 40, 60, 80].includes(tone)),
+    [seed, variant, mode],
+  );
+  const hct = useMemo(() => seedHct(seed), [seed]);
+  const eyeSupported = typeof window !== "undefined" && "EyeDropper" in window;
+
+  const pickFromScreen = useCallback(async () => {
+    try {
+      const eye = new (window as unknown as { EyeDropper: new () => { open: () => Promise<{ sRGBHex: string }> } }).EyeDropper();
+      const { sRGBHex } = await eye.open();
+      if (sRGBHex) {
+        setActivePreset(null);
+        onSeedChange(sRGBHex.toUpperCase());
+      }
+    } catch {
+      // Dismissed — stay on the current seed.
+    }
+  }, [onSeedChange]);
 
   // Image → 5 ranked candidates (quantize + chroma/coverage score).
   // Defaults to the top-ranked seed; top 3 stay selectable below.
@@ -552,26 +729,55 @@ function HeroSection({
 
                 <div className="flex-1">
                   <p className="text-xs mb-2" style={{ color: "var(--rt-outline)" }}>
-                    Click the circle to open the color picker
+                    Circle opens the picker
+                    {eyeSupported && " · eyedropper samples the screen"}
                   </p>
-                  <div className="flex gap-1.5">
-                    {[20, 40, 60, 80].map((t) => {
-                      const [r, g, b] = hexToRgb(seed);
-                      const [h, s] = rgbToHsl(r, g, b);
-                      const chroma = chromaScale(t, Math.min(s, 80));
-                      const [rr, gg, bb] = hslToRgb(h, chroma, t);
-                      const hex = rgbToHex(rr, gg, bb);
-                      return (
-                        <div
-                          key={t}
-                          className="flex-1 h-6 rounded-lg"
-                          style={{ background: hex, transition: "background var(--transition-theme)" }}
-                          title={`Tone ${t}: ${hex}`}
-                        />
-                      );
-                    })}
+                  {eyeSupported && (
+                    <button
+                      type="button"
+                      onClick={() => void pickFromScreen()}
+                      className="text-xs px-4 rounded-full transition-opacity hover:opacity-90 mb-3"
+                      style={{
+                        minHeight: 36,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        background: "var(--rt-surf3)",
+                        color: "var(--rt-p)",
+                        border: "1px solid var(--rt-outline)",
+                        fontWeight: 500,
+                      }}
+                    >
+                      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 22l4.5-1L20 7.5a2.12 2.12 0 0 0-3-3L3.5 18 2 22z" />
+                        <path d="M14.5 5.5l3 3" />
+                      </svg>
+                      Eyedropper
+                    </button>
+                  )}
+                  <div className="flex gap-1.5" role="img" aria-label="Current seed at tones 20, 40, 60, 80">
+                    {seedRamp.map(({ tone, hex }) => (
+                      <div
+                        key={tone}
+                        className="flex-1 h-6 rounded-lg"
+                        style={{ background: hex, transition: "background var(--transition-theme)" }}
+                        title={`Tone ${tone}: ${hex}`}
+                      />
+                    ))}
                   </div>
                 </div>
+              </div>
+
+              {/* Hue/sat surface — drag to retone live */}
+              <div className="mt-5">
+                <HueSatPad seed={seed} onSeedChange={(hex) => { setActivePreset(null); onSeedChange(hex); }} />
+                <p
+                  className="text-xs mt-2 text-center"
+                  aria-live="polite"
+                  style={{ color: "var(--rt-osv)", fontFamily: "var(--font-mono)" }}
+                >
+                  H {hct.hue.toFixed(0)}° · C {hct.chroma.toFixed(1)} · T {hct.tone.toFixed(0)} · {seed.toUpperCase()}
+                </p>
               </div>
             </div>
 
@@ -1495,7 +1701,10 @@ function readStoredVariant(): SchemeVariant | null {
 
 export default function App() {
   // Init order: URL hash → localStorage → default.
-  const [seed, setSeed] = useState(() => parseHash().seed ?? "#6750A4");
+  const [seed, setSeed] = useState(() => parseHash().seed ?? "#232329");
+  // Ambient mode: no hash seed means the page wakes with the clock and
+  // settles into the time-of-day seed. Any interaction disarms it.
+  const [ambientOn, setAmbientOn] = useState(() => !parseHash().seed);
   const [variant, setVariant] = useState<SchemeVariant>(
     () => parseHash().variant ?? readStoredVariant() ?? "tonal-spot",
   );
@@ -1524,13 +1733,38 @@ export default function App() {
 
   // Every retone — picker, presets, image, ambient — resolves as one
   // choreographed sweep (View Transitions API + graceful fallback).
+  // User-driven changes disarm the ambient settle.
   const handleSeedChange = useCallback((hex: string) => {
+    setAmbientOn(false);
     transitionTheme(() => setSeed(hex.toUpperCase()));
   }, []);
 
   const handleVariantChange = useCallback((v: SchemeVariant) => {
+    setAmbientOn(false);
     transitionTheme(() => setVariant(v));
   }, []);
+
+  // Ambient settle: neutral → time-of-day seed over ~2s on first paint.
+  useEffect(() => {
+    if (!ambientOn) return;
+    const target = ambientSeedForHour(new Date().getHours());
+    if (prefersReducedMotion()) {
+      setSeed(target);
+      return;
+    }
+    let raf = 0;
+    const from = "#232329";
+    const start = performance.now();
+    const DUR = 2000;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / DUR);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setSeed(lerpSeedHex(from, target, eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [ambientOn]);
 
   const handleModeChange = useCallback((m: ColorMode) => {
     transitionTheme(() => setMode(m));
@@ -1538,6 +1772,8 @@ export default function App() {
 
   return (
     <div className="retone-app theme-transition min-h-screen" style={{ background: "var(--rt-surf)" }}>
+      <AmbientCanvas seed={seed} variant={variant} mode={mode} />
+      <div className="relative" style={{ zIndex: 1 }}>
       <a href="#main" className="skip-link">
         Skip to main content
       </a>
@@ -1548,6 +1784,7 @@ export default function App() {
         onVariantChange={handleVariantChange}
         contrastNotes={applied.adjusted ? applied.notes : null}
         share={{ seed, variant, mode }}
+        mode={mode}
       />
       <main id="main">
       <PalettePanel seed={seed} variant={variant} mode={mode} />
@@ -1586,6 +1823,7 @@ export default function App() {
       </main>
 
       <Footer seed={seed} />
+      </div>
     </div>
   );
 }
