@@ -4,6 +4,7 @@ import {
   generateTheme,
   getEngineTheme,
   applyThemeRoles,
+  transitionTheme,
 } from "./lib/materialEngine";
 
 // ─── HCT-approximate Color Engine ───────────────────────────────────────────
@@ -1156,12 +1157,18 @@ export default function App() {
     applyTheme(theme);
   }, [theme]);
 
+  // Every retone — picker, presets, image, ambient — resolves as one
+  // choreographed sweep (View Transitions API + graceful fallback).
+  const handleSeedChange = useCallback((hex: string) => {
+    transitionTheme(() => setSeed(hex));
+  }, []);
+
   return (
     <div className="retone-app theme-transition min-h-screen" style={{ background: "var(--rt-surf)" }}>
       <a href="#main" className="skip-link">
         Skip to main content
       </a>
-      <HeroSection seed={seed} onSeedChange={setSeed} />
+      <HeroSection seed={seed} onSeedChange={handleSeedChange} />
       <main id="main">
       <PalettePanel seed={seed} />
       <ComponentShowcase theme={theme} />
