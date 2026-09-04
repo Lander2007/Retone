@@ -182,6 +182,90 @@ body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
   transform: scale(0.97);
 }
 
+/* Material 3 buttons: state layers + pointer-origin ripple.
+   The ::before overlay tints with currentColor (the on-color), so
+   hover/focus/pressed stay correct under every seed, no JS needed. */
+.m3-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-height: 44px;
+}
+.m3-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity var(--motion-micro) var(--ease-emphasized);
+  pointer-events: none;
+}
+.m3-btn:hover::before {
+  opacity: 0.08;
+}
+.m3-btn:focus-visible::before {
+  opacity: 0.12;
+}
+.m3-btn:active::before {
+  opacity: 0.12;
+}
+.ripple-ink {
+  position: absolute;
+  border-radius: 9999px;
+  background: currentColor;
+  transform: scale(0);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Morphing FAB: 16px square → stadium on hover, spring shape morph,
+   45° rotation + icon swap on toggle. */
+.fab-morph {
+  width: 76px;
+  height: 76px;
+  min-width: 76px;
+  min-height: 76px;
+  border-radius: 16px;
+  background: var(--rt-pc);
+  color: var(--rt-opc);
+  border: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition:
+    border-radius var(--motion-morph) cubic-bezier(0.34, 1.4, 0.64, 1),
+    transform var(--motion-morph) cubic-bezier(0.34, 1.4, 0.64, 1),
+    box-shadow var(--motion-micro) var(--ease-emphasized),
+    background-color var(--transition-theme),
+    color var(--transition-theme);
+}
+.fab-morph:hover,
+.fab-morph:focus-visible {
+  border-radius: 38px;
+  transform: scale(1.06);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--rt-seed) 40%, transparent);
+}
+.fab-morph:active {
+  transform: scale(0.96);
+}
+.fab-turn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--motion-morph) cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.fab-morph[data-on="true"] .fab-turn {
+  transform: rotate(45deg);
+}
+.fab-icon-check {
+  display: none;
+}
+.fab-morph[data-on="true"] .fab-icon-plus {
+  display: none;
+}
+.fab-morph[data-on="true"] .fab-icon-check {
+  display: block;
+}
+
 /* Reduced motion: kill blob, shimmer, theme fades become instant */
 @media (prefers-reduced-motion: reduce) {
   .fab-blob {
@@ -197,6 +281,11 @@ body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation: none;
+  }
+  .fab-morph,
+  .fab-turn,
+  .m3-btn::before {
+    transition-duration: 0.01ms !important;
   }
   html {
     scroll-behavior: auto;

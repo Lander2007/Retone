@@ -5,6 +5,7 @@ import {
   getEngineTheme,
   applyThemeRoles,
   transitionTheme,
+  prefersReducedMotion,
 } from "./lib/materialEngine";
 
 // ─── HCT-approximate Color Engine ───────────────────────────────────────────
@@ -119,6 +120,31 @@ function extractDominantColor(img: HTMLImageElement): string {
   }
   if (!count) return "#6750A4";
   return rgbToHex(Math.round(r / count), Math.round(g / count), Math.round(b / count));
+}
+
+// ─── Material ripple (origin follows the pointer) ────────────────────────────
+
+function spawnRipple(e: React.PointerEvent<HTMLElement>) {
+  if (prefersReducedMotion()) return;
+  const host = e.currentTarget;
+  const rect = host.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height) * 2.2;
+  const ink = document.createElement("span");
+  ink.className = "ripple-ink";
+  ink.setAttribute("aria-hidden", "true");
+  ink.style.width = `${size}px`;
+  ink.style.height = `${size}px`;
+  ink.style.left = `${e.clientX - rect.left - size / 2}px`;
+  ink.style.top = `${e.clientY - rect.top - size / 2}px`;
+  host.appendChild(ink);
+  const anim = ink.animate(
+    [
+      { transform: "scale(0)", opacity: 0.16 },
+      { transform: "scale(1)", opacity: 0 },
+    ],
+    { duration: 500, easing: "cubic-bezier(0.05, 0.7, 0.1, 1)", fill: "forwards" },
+  );
+  anim.onfinish = () => ink.remove();
 }
 
 // ─── Component Library ────────────────────────────────────────────────────────
@@ -637,7 +663,7 @@ function PalettePanel({ seed }: { seed: string }) {
 function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
   const [darkMode, setDarkMode] = useState(true);
   const [toggles, setToggles] = useState({ notifications: true, haptics: false, autoTheme: true });
-  const [fabHovered, setFabHovered] = useState(false);
+  const [fabOn, setFabOn] = useState(false);
 
   return (
     <section
@@ -679,7 +705,8 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                 {/* Filled */}
                 <button
                   type="button"
-                  className="btn-themed w-full py-3 rounded-full text-sm font-600 transition-all active:scale-95"
+                  onPointerDown={spawnRipple}
+                  className="m3-btn w-full py-3 rounded-full text-sm font-600 transition-all"
                   style={{
                     background: "var(--rt-p)",
                     color: "var(--rt-op)",
@@ -692,7 +719,8 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                 {/* Tonal */}
                 <button
                   type="button"
-                  className="btn-themed w-full py-3 rounded-full text-sm font-600 transition-all active:scale-95"
+                  onPointerDown={spawnRipple}
+                  className="m3-btn w-full py-3 rounded-full text-sm font-600 transition-all"
                   style={{
                     background: "var(--rt-pc)",
                     color: "var(--rt-opc)",
@@ -705,7 +733,8 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                 {/* Outlined */}
                 <button
                   type="button"
-                  className="btn-themed w-full py-3 rounded-full text-sm font-600 transition-all active:scale-95"
+                  onPointerDown={spawnRipple}
+                  className="m3-btn w-full py-3 rounded-full text-sm font-600 transition-all"
                   style={{
                     background: "transparent",
                     color: "var(--rt-p)",
@@ -719,7 +748,8 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                 {/* Text */}
                 <button
                   type="button"
-                  className="btn-themed w-full py-3 rounded-full text-sm transition-all active:scale-95"
+                  onPointerDown={spawnRipple}
+                  className="m3-btn w-full py-3 rounded-full text-sm transition-all"
                   style={{
                     background: "transparent",
                     color: "var(--rt-p)",
@@ -745,34 +775,45 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
               </p>
               <button
                 type="button"
-                aria-label="Create new theme from current seed"
-                onMouseEnter={() => setFabHovered(true)}
-                onMouseLeave={() => setFabHovered(false)}
-                onFocus={() => setFabHovered(true)}
-                onBlur={() => setFabHovered(false)}
-                className="fab-blob flex items-center justify-center transition-all active:scale-90"
-                style={{
-                  width: 80,
-                  height: 80,
-                  minWidth: 80,
-                  minHeight: 80,
-                  background: "var(--rt-pc)",
-                  color: "var(--rt-opc)",
-                  boxShadow: fabHovered
-                    ? `0 8px 32px color-mix(in srgb, var(--rt-seed) 40%, transparent)`
-                    : `0 4px 16px rgba(0,0,0,0.4)`,
-                  transform: fabHovered ? "scale(1.08)" : "scale(1)",
-                  transition: "box-shadow 300ms ease, transform 300ms cubic-bezier(0.2,0,0,1)",
-                }}
-                title="FAB — organic blob shape"
+                aria-label={fabOn ? "Confirm theme" : "Create theme from current seed"}
+                aria-pressed={fabOn}
+                data-on={fabOn}
+                onClick={() => setFabOn((v) => !v)}
+                onPointerDown={spawnRipple}
+                className="fab-morph flex items-center justify-center"
+                title="FAB — square morphs to stadium, toggles edit to check"
               >
-                <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
+                <span className="fab-turn" aria-hidden="true">
+                  <svg
+                    className="fab-icon-plus"
+                    width="26"
+                    height="26"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  </svg>
+                  <svg
+                    className="fab-icon-check"
+                    width="28"
+                    height="28"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                </span>
               </button>
               <p className="text-xs text-center" style={{ color: "var(--rt-outline)" }}>
-                Morphing blob shape · Spring physics
+                16px square → stadium · 45° toggle · Spring morph
               </p>
             </div>
           </div>
