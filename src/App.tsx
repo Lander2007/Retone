@@ -8,6 +8,8 @@ import {
   applyThemeRoles,
   transitionTheme,
   prefersReducedMotion,
+  extractCandidates,
+  fileToImage,
   VARIANT_LABELS,
   type SchemeVariant,
   type ColorMode,
@@ -107,27 +109,6 @@ function applyTheme(theme: ThemeRoles) {
   applyThemeRoles(root, getEngineTheme(theme.seed));
 }
 
-// ─── Dominant color extraction from image ────────────────────────────────────
-
-function extractDominantColor(img: HTMLImageElement): string {
-  const canvas = document.createElement("canvas");
-  canvas.width = 64; canvas.height = 64;
-  const ctx = canvas.getContext("2d")!;
-  ctx.drawImage(img, 0, 0, 64, 64);
-  const data = ctx.getImageData(0, 0, 64, 64).data;
-  let r = 0, g = 0, b = 0, count = 0;
-  for (let i = 0; i < data.length; i += 16) {
-    const [rr, gg, bb] = [data[i], data[i + 1], data[i + 2]];
-    const [, sat, lit] = rgbToHsl(rr, gg, bb);
-    // only include non-grey, non-extreme pixels
-    if (sat > 10 && lit > 10 && lit < 90) {
-      r += rr; g += gg; b += bb; count++;
-    }
-  }
-  if (!count) return "#6750A4";
-  return rgbToHex(Math.round(r / count), Math.round(g / count), Math.round(b / count));
-}
-
 // ─── Material ripple (origin follows the pointer) ────────────────────────────
 
 function spawnRipple(e: React.PointerEvent<HTMLElement>) {
@@ -197,47 +178,90 @@ function HeroSection({
   const dropRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
   const [dropImg, setDropImg] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<string[] | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [imgError, setImgError] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>("Violet");
+
+  // Image → 5 ranked candidates (quantize + chroma/coverage score).
+  // Defaults to the top-ranked seed; top 3 stay selectable below.
+  const processFile = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/")) {
+        setImgError("That file is not an image — try a JPG, PNG, or WebP.");
+        return;
+      }
+      setExtracting(true);
+      setImgError(null);
+      try {
+        const { img, url } = await fileToImage(file);
+        setDropImg((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return url;
+        });
+        const ranked = await extractCandidates(img, 5);
+        setCandidates(ranked.slice(0, 3));
+        if (ranked[0]) {
+          onSeedChange(ranked[0]);
+          setActivePreset(null);
+        }
+      } catch {
+        setImgError("Could not read that image. Try another file.");
+      } finally {
+        setExtracting(false);
+      }
+    },
+    [onSeedChange],
+  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragging(false);
       const file = e.dataTransfer.files[0];
-      if (!file || !file.type.startsWith("image/")) return;
-      const url = URL.createObjectURL(file);
-      setDropImg(url);
-      const img = new Image();
-      img.onload = () => {
-        const color = extractDominantColor(img);
-        onSeedChange(color);
-        setActivePreset(null);
-      };
-      img.src = url;
+      if (file) void processFile(file);
     },
-    [onSeedChange]
+    [processFile],
   );
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file || !file.type.startsWith("image/")) return;
-      const url = URL.createObjectURL(file);
-      setDropImg(url);
-      const img = new Image();
-      img.onload = () => {
-        const color = extractDominantColor(img);
-        onSeedChange(color);
-        setActivePreset(null);
-      };
-      img.src = url;
+      if (file) void processFile(file);
+      e.target.value = ""; // allow re-picking the same file
     },
-    [onSeedChange]
+    [processFile],
   );
+
+  // Clipboard paste: screenshot → theme without touching the disk.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      const file = Array.from(e.clipboardData?.files ?? []).find((f) =>
+        f.type.startsWith("image/"),
+      );
+      if (file) {
+        e.preventDefault();
+        void processFile(file);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [processFile]);
+
+  const clearImage = useCallback(() => {
+    setDropImg((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setCandidates(null);
+    setImgError(null);
+  }, []);
 
   const pickPreset = (name: string, hex: string) => {
     setActivePreset(name);
-    setDropImg(null);
+    clearImage();
     onSeedChange(hex);
   };
 
@@ -459,12 +483,13 @@ function HeroSection({
               </div>
             </div>
 
-            {/* Image Drop Zone — drag + keyboard/browse alternative */}
+            {/* Image seed — drop, browse, or paste. Quantized + scored. */}
             <div
               ref={dropRef}
               onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={handleDrop}
+              aria-busy={extracting}
               className="rounded-3xl transition-all"
               style={{
                 border: `2px dashed ${dragging ? "var(--rt-p)" : "var(--rt-surf3)"}`,
@@ -477,12 +502,75 @@ function HeroSection({
               }}
             >
               {dropImg ? (
-                <img
-                  src={dropImg}
-                  alt="Dropped image used for palette extraction"
-                  className="w-full h-40 object-cover"
-                  style={{ borderRadius: 22 }}
-                />
+                <div className="p-3">
+                  <div className="relative">
+                    <img
+                      src={dropImg}
+                      alt="Uploaded image used for palette extraction"
+                      className="w-full h-40 object-cover"
+                      style={{ borderRadius: 18 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={clearImage}
+                      aria-label="Remove uploaded image"
+                      className="absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center"
+                      style={{
+                        minWidth: 36,
+                        minHeight: 36,
+                        background: "rgba(0,0,0,0.6)",
+                        color: "#fff",
+                        border: "1px solid rgba(255,255,255,0.25)",
+                      }}
+                    >
+                      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  {candidates && candidates.length > 0 && (
+                    <div className="flex items-center gap-3 mt-3 px-1 pb-1">
+                      <span
+                        className="text-xs"
+                        style={{ color: "var(--rt-outline)", fontFamily: "var(--font-mono)" }}
+                      >
+                        Top picks
+                      </span>
+                      <div className="flex gap-2" role="group" aria-label="Top extracted seed colors">
+                        {candidates.map((hex, i) => {
+                          const selected = seed.toUpperCase() === hex.toUpperCase();
+                          return (
+                            <button
+                              key={hex + i}
+                              type="button"
+                              aria-pressed={selected}
+                              title={`${hex} — use as seed${i === 0 ? " (top ranked)" : ""}`}
+                              aria-label={`Use ${hex} as seed${i === 0 ? ", top ranked" : ""}`}
+                              onClick={() => {
+                                setActivePreset(null);
+                                onSeedChange(hex);
+                              }}
+                              className="rounded-full transition-transform hover:scale-110"
+                              style={{
+                                width: 44,
+                                height: 44,
+                                minWidth: 44,
+                                minHeight: 44,
+                                background: hex,
+                                border: selected
+                                  ? "2px solid var(--rt-p)"
+                                  : "2px solid rgba(255,255,255,0.25)",
+                                boxShadow: selected
+                                  ? "0 0 0 2px color-mix(in srgb, var(--rt-p) 40%, transparent)"
+                                  : "none",
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-auto min-h-36 gap-2 py-6 px-4 text-center">
                   <svg
@@ -500,7 +588,7 @@ function HeroSection({
                     <line x1="12" y1="3" x2="12" y2="15" />
                   </svg>
                   <span className="text-sm" style={{ color: "var(--rt-outline)" }}>
-                    Drop a photo to extract its palette
+                    {extracting ? "Scoring colors…" : "Drop a photo to extract its palette"}
                   </span>
                   <label
                     className="text-xs px-4 py-2 rounded-full"
@@ -525,13 +613,20 @@ function HeroSection({
                     />
                   </label>
                   <span className="text-xs" style={{ color: "var(--rt-outline)", opacity: 0.6 }}>
-                    JPG, PNG, WebP
+                    Drop · browse · paste — JPG, PNG, WebP
                   </span>
                 </div>
               )}
               <span aria-live="polite" className="sr-only">
                 {dragging ? "Release to extract palette" : ""}
+                {extracting ? "Extracting colors from image." : ""}
+                {imgError ?? ""}
               </span>
+              {imgError && !dropImg && (
+                <p role="alert" className="text-xs text-center pb-3 px-4" style={{ color: "#FCA5A5" }}>
+                  {imgError}
+                </p>
+              )}
             </div>
           </div>
         </div>
