@@ -10,7 +10,15 @@ import {
   prefersReducedMotion,
   extractCandidates,
   fileToImage,
+  ensureContrast,
+  toLegacyRoles,
+  parseHash,
+  writeHash,
+  shareUrl,
   VARIANT_LABELS,
+  VARIANT_ORDER,
+  type EngineTheme,
+  type ShareState,
   type SchemeVariant,
   type ColorMode,
   type RoleKey,
@@ -103,10 +111,10 @@ export interface ThemeRoles {
 // `--md-sys-color-*` vars are written first; legacy `--rt-*` aliases follow
 // so existing components keep working untouched.
 
-function applyTheme(theme: ThemeRoles) {
+function applyTheme(t: EngineTheme) {
   const root = document.querySelector(".retone-app") as HTMLElement;
   if (!root) return;
-  applyThemeRoles(root, getEngineTheme(theme.seed));
+  applyThemeRoles(root, t);
 }
 
 // ─── Material ripple (origin follows the pointer) ────────────────────────────
@@ -171,9 +179,17 @@ async function copyText(text: string): Promise<boolean> {
 function HeroSection({
   seed,
   onSeedChange,
+  variant,
+  onVariantChange,
+  contrastNotes,
+  share,
 }: {
   seed: string;
   onSeedChange: (hex: string) => void;
+  variant: SchemeVariant;
+  onVariantChange: (v: SchemeVariant) => void;
+  contrastNotes: string[] | null;
+  share: ShareState;
 }) {
   const dropRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -182,6 +198,7 @@ function HeroSection({
   const [extracting, setExtracting] = useState(false);
   const [imgError, setImgError] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>("Violet");
+  const [shareCopied, setShareCopied] = useState(false);
 
   // Image → 5 ranked candidates (quantize + chroma/coverage score).
   // Defaults to the top-ranked seed; top 3 stay selectable below.
@@ -397,6 +414,57 @@ function HeroSection({
                 </button>
               ))}
             </div>
+
+            {/* Scheme variants — the library's six DynamicSchemes */}
+            <div className="mb-8">
+              <span
+                id="variant-label"
+                className="text-xs block mb-2"
+                style={{ color: "var(--rt-outline)" }}
+              >
+                Scheme variant
+              </span>
+              <div role="group" aria-labelledby="variant-label" className="flex flex-wrap gap-2">
+                {VARIANT_ORDER.map((v) => {
+                  const selected = variant === v;
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => onVariantChange(v)}
+                      className="touch-hit px-4 rounded-full text-xs transition-all"
+                      style={{
+                        minHeight: 36,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        background: selected ? "var(--rt-p)" : "var(--rt-surf2)",
+                        color: selected ? "var(--rt-op)" : "var(--rt-osv)",
+                        border: `1px solid ${selected ? "var(--rt-p)" : "var(--rt-surf3)"}`,
+                        fontWeight: selected ? 600 : 500,
+                      }}
+                    >
+                      {VARIANT_LABELS[v]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {contrastNotes && contrastNotes.length > 0 && (
+              <p
+                role="status"
+                className="text-xs mb-8 px-3 py-2 rounded-xl inline-block"
+                style={{
+                  background: "color-mix(in srgb, #EAB308 12%, transparent)",
+                  color: "var(--rt-osv)",
+                  border: "1px solid color-mix(in srgb, #EAB308 35%, transparent)",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                Contrast adjusted · {contrastNotes.length} role{contrastNotes.length > 1 ? "s" : ""} retuned to 4.5:1
+              </p>
+            )}
           </div>
 
           {/* Right: Controls */}
@@ -416,16 +484,40 @@ function HeroSection({
                 >
                   Seed Color
                 </span>
-                <span
-                  className="text-xs px-2 py-0.5 rounded"
-                  style={{
-                    background: "var(--rt-surf3)",
-                    color: "var(--rt-outline)",
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
-                  {seed.toUpperCase()}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-xs px-2 py-0.5 rounded"
+                    style={{
+                      background: "var(--rt-surf3)",
+                      color: "var(--rt-outline)",
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    {seed.toUpperCase()}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (await copyText(shareUrl(share))) {
+                        setShareCopied(true);
+                        window.setTimeout(() => setShareCopied(false), 1600);
+                      }
+                    }}
+                    className="text-xs px-3 rounded-full transition-opacity hover:opacity-90"
+                    style={{
+                      minHeight: 32,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      background: "var(--rt-surf3)",
+                      color: "var(--rt-p)",
+                      border: "1px solid var(--rt-outline)",
+                      fontWeight: 500,
+                    }}
+                    aria-live="polite"
+                  >
+                    {shareCopied ? "Link copied ✓" : "Copy share link"}
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-5">
@@ -832,8 +924,16 @@ function PalettePanel({
   );
 }
 
-function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
-  const [darkMode, setDarkMode] = useState(true);
+function ComponentShowcase({
+  theme,
+  mode,
+  onModeChange,
+}: {
+  theme: ThemeRoles;
+  mode: ColorMode;
+  onModeChange: (m: ColorMode) => void;
+}) {
+  const darkMode = mode === "dark";
   const [toggles, setToggles] = useState({ notifications: true, haptics: false, autoTheme: true });
   const [fabOn, setFabOn] = useState(false);
 
@@ -1092,7 +1192,7 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                 Settings Panel
               </p>
 
-              {/* Light/dark toggle */}
+              {/* Light/dark mode — global, persisted, shared in the link */}
               <div
                 className="flex items-center justify-between py-3.5 border-b"
                 style={{ borderColor: "var(--rt-surf3)" }}
@@ -1102,7 +1202,7 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                     {darkMode ? "Dark" : "Light"} mode
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: "var(--rt-outline)" }}>
-                    Surface tone {darkMode ? "8" : "98"}
+                    Whole page · saved · in share link
                   </p>
                 </div>
                 <button
@@ -1110,7 +1210,7 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
                   role="switch"
                   aria-checked={darkMode}
                   aria-label="Toggle dark mode"
-                  onClick={() => setDarkMode(!darkMode)}
+                  onClick={() => onModeChange(darkMode ? "light" : "dark")}
                   className="touch-hit relative transition-all"
                   style={{
                     width: 52,
@@ -1234,9 +1334,19 @@ function ComponentShowcase({ theme }: { theme: ThemeRoles }) {
   );
 }
 
-function AlternateThemePreview({ hex, name }: { hex: string; name: string }) {
-  const theme = useMemo(() => generateTheme(hex), [hex]);
-  const palette = useMemo(() => generateTonalPalette(hex), [hex]);
+function AlternateThemePreview({
+  hex,
+  name,
+  variant = "tonal-spot",
+  mode = "dark",
+}: {
+  hex: string;
+  name: string;
+  variant?: SchemeVariant;
+  mode?: ColorMode;
+}) {
+  const theme = useMemo(() => generateTheme(hex, variant, mode), [hex, variant, mode]);
+  const palette = useMemo(() => generateTonalPalette(hex, variant, mode), [hex, variant, mode]);
 
   return (
     <div
@@ -1362,18 +1472,68 @@ function Footer({ seed }: { seed: string }) {
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
 
+const MODE_KEY = "retone:mode";
+const VARIANT_KEY = "retone:variant";
+
+function readStoredMode(): ColorMode | null {
+  try {
+    const v = window.localStorage.getItem(MODE_KEY);
+    return v === "light" || v === "dark" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredVariant(): SchemeVariant | null {
+  try {
+    const v = window.localStorage.getItem(VARIANT_KEY);
+    return v && (VARIANT_ORDER as string[]).includes(v) ? (v as SchemeVariant) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
-  const [seed, setSeed] = useState("#6750A4");
-  const theme = useMemo(() => generateTheme(seed), [seed]);
+  // Init order: URL hash → localStorage → default.
+  const [seed, setSeed] = useState(() => parseHash().seed ?? "#6750A4");
+  const [variant, setVariant] = useState<SchemeVariant>(
+    () => parseHash().variant ?? readStoredVariant() ?? "tonal-spot",
+  );
+  const [mode, setMode] = useState<ColorMode>(() => parseHash().mode ?? readStoredMode() ?? "dark");
+
+  // One memo builds scheme → roles → contrast-guarded roles. Retoning is a
+  // variable swap downstream; nothing below recomputes color.
+  const applied = useMemo(() => {
+    const t = getEngineTheme(seed, variant, mode);
+    const guard = ensureContrast(t.roles);
+    return { theme: { ...t, roles: guard.roles }, adjusted: guard.adjusted, notes: guard.notes };
+  }, [seed, variant, mode]);
+  const theme = useMemo(() => toLegacyRoles(applied.theme), [applied]);
 
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    applyTheme(applied.theme);
+    document.documentElement.style.colorScheme = mode;
+    writeHash({ seed, variant, mode });
+    try {
+      window.localStorage.setItem(MODE_KEY, mode);
+      window.localStorage.setItem(VARIANT_KEY, variant);
+    } catch {
+      // Private mode — theming still works, it just won't persist.
+    }
+  }, [applied, seed, variant, mode]);
 
   // Every retone — picker, presets, image, ambient — resolves as one
   // choreographed sweep (View Transitions API + graceful fallback).
   const handleSeedChange = useCallback((hex: string) => {
-    transitionTheme(() => setSeed(hex));
+    transitionTheme(() => setSeed(hex.toUpperCase()));
+  }, []);
+
+  const handleVariantChange = useCallback((v: SchemeVariant) => {
+    transitionTheme(() => setVariant(v));
+  }, []);
+
+  const handleModeChange = useCallback((m: ColorMode) => {
+    transitionTheme(() => setMode(m));
   }, []);
 
   return (
@@ -1381,10 +1541,17 @@ export default function App() {
       <a href="#main" className="skip-link">
         Skip to main content
       </a>
-      <HeroSection seed={seed} onSeedChange={handleSeedChange} />
+      <HeroSection
+        seed={seed}
+        onSeedChange={handleSeedChange}
+        variant={variant}
+        onVariantChange={handleVariantChange}
+        contrastNotes={applied.adjusted ? applied.notes : null}
+        share={{ seed, variant, mode }}
+      />
       <main id="main">
-      <PalettePanel seed={seed} />
-      <ComponentShowcase theme={theme} />
+      <PalettePanel seed={seed} variant={variant} mode={mode} />
+      <ComponentShowcase theme={theme} mode={mode} onModeChange={handleModeChange} />
 
       {/* Alternate Theme Section */}
       <section
@@ -1411,8 +1578,8 @@ export default function App() {
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <AlternateThemePreview hex="#6750A4" name="Violet" />
-            <AlternateThemePreview hex="#00695C" name="Emerald" />
+            <AlternateThemePreview hex="#6750A4" name="Violet" variant={variant} mode={mode} />
+            <AlternateThemePreview hex="#00695C" name="Emerald" variant={variant} mode={mode} />
           </div>
         </div>
       </section>
