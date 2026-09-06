@@ -27,6 +27,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        '@material/web/icon-button': path.resolve(__dirname, './node_modules/@material/web/iconbutton'),
       },
     },
     server: {

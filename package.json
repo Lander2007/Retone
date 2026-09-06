@@ -1,5 +1,5 @@
 {
-  "name": "figma-make-app",
+  "name": "retone",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@material/material-color-utilities": "^0.4.0",
+    "@material/web": "^2.5.0",
+    "framer-motion": "^13.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

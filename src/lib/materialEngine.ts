@@ -550,8 +550,36 @@ export async function extractCandidates(img: HTMLImageElement, desired = 5): Pro
 
 // ─── Motion helpers ───────────────────────────────────────────────────────────
 
-/** True when the user asked for reduced motion. */
+export type MotionPreference = "auto" | "reduced";
+
+const MOTION_KEY = "retone:motion";
+
+export function readMotionPreference(): MotionPreference {
+  try {
+    return window.localStorage.getItem(MOTION_KEY) === "reduced"
+      ? "reduced"
+      : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+export function writeMotionPreference(p: MotionPreference) {
+  try {
+    window.localStorage.setItem(MOTION_KEY, p);
+  } catch {
+    // Private mode — the toggle still works for this session.
+  }
+}
+
+/** True when the OS asks for reduced motion OR the in-app override is set. */
 export function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined") return false;
+  if (
+    document.querySelector(".retone-app")?.getAttribute("data-motion") ===
+    "reduced"
+  )
+    return true;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 

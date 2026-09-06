@@ -1,6 +1,6 @@
-# figma-make-app
+# retone
 
-React + Vite + Tailwind CSS project running inside Figma Make.
+React + Vite + Tailwind CSS project. Material You dynamic-theming demo built directly in code with Material Web components.
 
 ## Development Server
 
@@ -18,12 +18,13 @@ This is the canonical project structure. Start with task-relevant files below. O
 - `src/index.css` - Global CSS entrypoint and Tailwind CSS v4 import
 - `index.html` - Vite HTML shell containing the `#root` element and loading `src/main.tsx`
 - `package.json` - Project dependencies and the Vite build, development, preview, and formatting scripts
-- `vite.config.ts` - Vite configuration with React, Tailwind CSS v4, and Figma Make plugins plus the `@` alias for `src`
+- `vite.config.ts` - Vite configuration with React, Tailwind CSS v4, plus the `@` alias for `src`
 - `.mise.toml` - Toolchain versions for Node.js and pnpm
 
 ## Dependencies
 
 - Runtime: React 19 and React DOM 19
+- Components: Material Web (`@material/web`) custom elements via `src/mw.tsx` wrappers, Material Symbols Rounded icons
 - Styling: Tailwind CSS v4 with the `@tailwindcss/vite` plugin
 - Build tooling: Vite 8, TypeScript 5.7, and `@vitejs/plugin-react`
 - Formatting: oxfmt

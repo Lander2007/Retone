@@ -1,5 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 @import 'tailwindcss';
+
+@theme {
+  --ease-m3-expressive-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-m3-expressive-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-m3-expressive-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+}
 
 html,
 body,
@@ -14,22 +20,47 @@ body,
 }
 
 :root {
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-body: 'Inter', sans-serif;
+  /* Roboto Flex is the M3 Expressive variable font. Google Sans Text is
+     licensed, not served by Google Fonts — it resolves only where
+     installed; Roboto Flex renders everywhere else. */
+  --font-stack: 'Roboto Flex', 'Google Sans Text', 'Inter', system-ui, sans-serif;
+  --font-display: var(--font-stack);
+  --font-body: var(--font-stack);
   --font-mono: 'JetBrains Mono', monospace;
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 24px;
-  --radius-xl: 28px;
-  --radius-fab: 18px;
+  /* M3 shape scale (components use these, not ad-hoc radii). */
+  --shape-none: 0px;
+  --shape-xs: 4px;
+  --shape-sm: 8px;
+  --shape-md: 12px;
+  --shape-lg: 16px;
+  --shape-xl: 28px;
+  --shape-full: 9999px;
+  --shape-pill: 9999px;
   /* Material emphasized motion — one choreographed language for every
      color sweep, shape morph, and panel animation. */
   --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
   --ease-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
   --ease-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
-  --motion-sweep: 400ms;   /* full palette retone */
-  --motion-morph: 350ms;   /* shape / FAB morphs */
-  --motion-micro: 200ms;   /* hovers, presses, toggles */
+  /* Springs: physics-based motion. linear() approximates a real spring
+     (overshoot for expressive, none for standard); the cubic-bezier line
+     above each is the fallback where linear() is unsupported. */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-spring: linear(0, 0.35 15%, 0.7 28%, 0.92 40%, 1.03 52%, 1.07 60%, 1.04 68%, 1 76%, 0.99 84%, 1 92%, 1);
+  --ease-spring-soft: cubic-bezier(0.3, 1.25, 0.4, 1);
+  --ease-spring-soft: linear(0, 0.3 14%, 0.62 30%, 0.88 46%, 1.02 60%, 1.05 68%, 1.02 76%, 1 84%, 1);
+  --ease-standard: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-standard: linear(0, 0.2 12%, 0.45 25%, 0.68 40%, 0.85 55%, 0.95 70%, 1 85%, 1);
+  /* M3 Expressive Easing Curves */
+  --ease-m3-expressive-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-m3-expressive-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-m3-expressive-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --tracking-display: -0.04em;
+  --motion-sweep: 400ms;
+  /* full palette retone */
+  --motion-morph: 350ms;
+  /* shape / FAB morphs */
+  --motion-micro: 200ms;
+  /* hovers, presses, toggles */
   --transition-theme: var(--motion-sweep) var(--ease-emphasized);
 }
 
@@ -38,14 +69,31 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.font-display { font-family: var(--font-display); }
-.font-mono { font-family: var(--font-mono); }
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
 
 /* Hide scrollbar until hover */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
-body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+body:not(:hover)::-webkit-scrollbar-thumb {
+  background: transparent;
+}
 
 /* Theme transition — every themed surface joins the 400ms sweep */
 .theme-transition,
@@ -64,20 +112,34 @@ body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
   animation-duration: var(--motion-sweep);
   animation-timing-function: var(--ease-emphasized);
 }
+
 ::view-transition-old(root) {
   animation-name: retone-out;
 }
+
 ::view-transition-new(root) {
   animation-name: retone-in;
   mix-blend-mode: normal;
 }
+
 @keyframes retone-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
+
 @keyframes retone-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* Custom color props injected by JS */
@@ -122,6 +184,7 @@ body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
   font-weight: 600;
   transition: top 200ms ease;
 }
+
 .skip-link:focus-visible {
   top: 12px;
   outline-offset: 2px;
@@ -139,6 +202,7 @@ body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
 .touch-hit {
   position: relative;
 }
+
 .touch-hit::after {
   content: "";
   position: absolute;
@@ -147,31 +211,112 @@ body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
 
 /* Color picker keyboard focus ring on wrapper */
 .seed-ring:focus-within {
-  box-shadow: 0 0 0 2px var(--rt-surf), 0 0 0 4px var(--rt-p), 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 2px var(--rt-surf), 0 0 0 4px var(--rt-p), 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
-/* Hover + focus parity for themed buttons (don't rely on hover alone) */
-.btn-themed {
-  min-height: 44px;
-}
-.btn-themed:hover,
-.btn-themed:focus-visible {
-  filter: brightness(1.12);
-}
-.btn-themed:active {
-  transform: scale(0.97);
+/* Seed well: squircle resting shape that bursts on hover. The morph lives
+   on the decorative inner layer (pointer-events-none) so the color input
+   keeps its full hit area. */
+.seed-shape {
+  transition: clip-path var(--motion-morph) var(--ease-spring), background-color var(--transition-theme);
 }
 
-/* Material 3 buttons: state layers + pointer-origin ripple.
-   The ::before overlay tints with currentColor (the on-color), so
-   hover/focus/pressed stay correct under every seed, no JS needed. */
-.m3-btn {
+.seed-ring:hover .seed-shape {
+  clip-path: polygon(98% 50%, 77.7% 66%, 74% 91.6%, 50% 82%, 26% 91.6%, 22.3% 66%, 2% 50%, 22.3% 34%, 26% 8.4%, 50% 18%, 74% 8.4%, 77.7% 34%);
+}
+
+/* Material Symbols Rounded (Expressive) + md-icon sizing. */
+.material-symbols-rounded {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+md-icon {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+/* Filled symbol style (toggles, active states). */
+md-icon.fill,
+.material-symbols-rounded.fill {
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+/* Material Web typefaces follow the Retone stack. */
+.retone-app {
+  --md-ref-typeface-brand: 'Google Sans Text', 'Roboto Flex', 'Inter', system-ui, sans-serif;
+  --md-ref-typeface-plain: 'Google Sans Text', 'Roboto Flex', 'Inter', system-ui, sans-serif;
+}
+
+/* Navbar tabs blend into the floating pill. */
+.nav-tabs {
+  --md-secondary-tab-container-color: transparent;
+}
+
+.nav-tabs md-secondary-tab {
+  min-width: 0;
+}
+
+/* Expressive card shape + type follow the Retone pairing. */
+md-elevated-card,
+md-outlined-card {
+  --md-elevated-card-container-shape: 28px;
+  --md-outlined-card-container-shape: 28px;
+  --md-elevated-card-label-text-font: var(--font-body);
+  --md-outlined-card-label-text-font: var(--font-body);
+}
+
+/* Material 3 Linear Progress */
+md-linear-progress {
+  --md-linear-progress-track-color: var(--md-sys-color-surface-container-highest);
+  --md-linear-progress-active-indicator-color: var(--md-sys-color-primary);
+}
+
+/* Deterministic controls — exact M3 metrics as plain boxes on the 4px
+   scale. State layer uses the button's own text color (M3 spec). */
+.ctl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 20px;
+  white-space: nowrap;
   position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  min-height: 44px;
 }
-.m3-btn::before {
+
+.ctl-btn::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -181,96 +326,475 @@ body:not(:hover)::-webkit-scrollbar-thumb { background: transparent; }
   transition: opacity var(--motion-micro) var(--ease-emphasized);
   pointer-events: none;
 }
-.m3-btn:hover::before {
+
+.ctl-btn:hover::before {
   opacity: 0.08;
 }
-.m3-btn:focus-visible::before {
+
+.ctl-btn:active::before {
   opacity: 0.12;
-}
-.m3-btn:active::before {
-  opacity: 0.12;
-}
-.ripple-ink {
-  position: absolute;
-  border-radius: 9999px;
-  background: currentColor;
-  transform: scale(0);
-  pointer-events: none;
-  z-index: 1;
 }
 
-/* Morphing FAB: 16px square → stadium on hover, spring shape morph,
-   45° rotation + icon swap on toggle. */
-.fab-morph {
-  width: 76px;
-  height: 76px;
-  min-width: 76px;
-  min-height: 76px;
+/* Eyedropper: 10px/16px, 40px min, 8px icon gap, 18px icon. */
+.ctl-eyedropper {
+  padding: 10px 16px;
+  min-height: 40px;
+  gap: 8px;
+  border: 1px solid var(--md-sys-color-outline-variant, var(--rt-surf3));
+  color: var(--md-sys-color-primary, var(--rt-p));
+  font-weight: 500;
+}
+
+.ctl-eyedropper md-icon {
+  font-size: 18px;
+}
+
+/* Hero CTAs: identical 12px/24px, 44px min, 8px icon gap, 18px icon. */
+.ctl-cta {
+  padding: 12px 24px;
+  min-height: 44px;
+  gap: 8px;
+}
+
+.ctl-cta-filled {
+  background: var(--md-sys-color-primary, var(--rt-p));
+  color: var(--md-sys-color-on-primary, var(--rt-op));
+}
+
+.ctl-cta-tonal {
+  background: var(--md-sys-color-primary-container, var(--rt-pc));
+  color: var(--md-sys-color-on-primary-container, var(--rt-opc));
+}
+
+.ctl-cta md-icon {
+  font-size: 18px;
+}
+
+/* Segmented group: wraps, so no scrollbar can ever appear. */
+.seg-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.seg-btn {
+  padding: 10px 16px;
+  min-height: 40px;
+  gap: 6px;
+  border: 1px solid var(--md-sys-color-outline, var(--rt-outline));
+  color: var(--md-sys-color-on-surface-variant, var(--rt-osv));
+  background: transparent;
+  font-weight: 500;
+}
+
+.seg-btn md-icon {
+  font-size: 16px;
+}
+
+.seg-btn[data-selected="true"] {
+  background: var(--md-sys-color-primary-container, var(--rt-pc));
+  color: var(--md-sys-color-on-primary-container, var(--rt-opc));
+  border-color: transparent;
+  font-weight: 600;
+}
+
+/* Connected ButtonGroup (hero pair): shared edge, pill outer ends,
+   small inner corners. */
+.btn-group {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.btn-group> :first-child {
+  border-radius: 9999px var(--shape-xs) var(--shape-xs) 9999px;
+}
+
+.btn-group> :last-child {
+  border-radius: var(--shape-xs) 9999px 9999px var(--shape-xs);
+}
+
+.btn-group> :only-child {
+  border-radius: 9999px;
+}
+
+/* Shared custom panel: one radius, one surface, one border, everywhere. */
+.panel {
+  border-radius: 28px;
+  background: var(--md-sys-color-surface-container, var(--rt-surf2));
+  border: 1px solid var(--md-sys-color-outline-variant, var(--rt-surf3));
+}
+
+/* Multi-browse carousel (finale): large focused card + peeking neighbor,
+   snap scrolling, icon-button steppers. */
+.carousel-track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 4px 4px 12px;
+}
+
+.carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.carousel-item {
+  flex: 0 0 min(78%, 560px);
+  scroll-snap-align: center;
+}
+
+/* ── Expressive shape library ──────────────────────────────────────────
+   12-vertex clip-paths so cookie ↔ burst ↔ circle MORPH (CSS interpolates
+   clip-path when vertex counts match). Gem is a static accent. */
+.shape-cookie {
+  clip-path: polygon(98% 50%, 82.9% 69%, 74% 91.6%, 50% 88%, 26% 91.6%, 17.1% 69%, 2% 50%, 17.1% 31%, 26% 8.4%, 50% 12%, 74% 8.4%, 82.9% 31%);
+}
+
+.shape-burst {
+  clip-path: polygon(98% 50%, 77.7% 66%, 74% 91.6%, 50% 82%, 26% 91.6%, 22.3% 66%, 2% 50%, 22.3% 34%, 26% 8.4%, 50% 18%, 74% 8.4%, 77.7% 34%);
+}
+
+.shape-gem {
+  clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+}
+
+/* 12-vertex rounded square (superellipse) — the FAB resting shape. */
+.shape-squircle {
+  clip-path: polygon(98% 50%, 94.7% 83.9%, 83.9% 94.7%, 50% 98%, 16.1% 94.7%, 5.3% 83.9%, 2% 50%, 5.3% 16.1%, 16.1% 5.3%, 50% 2%, 83.9% 5.3%, 94.7% 16.1%);
+}
+
+/* ── Emphasized type scale (Roboto Flex variable) ──────────────────────
+   Standard steps + emphasized variants (larger + heavier) for content
+   that must dominate. Body utilities (text-base/sm) map to Body L/M/S;
+   mono readouts stay JetBrains Mono by design. */
+.t-display-l,
+.t-display-l-em {
+  font-size: 57px;
+  line-height: 64px;
+  letter-spacing: -0.25px;
+  font-weight: 400;
+}
+
+.t-display-l-em {
+  font-size: 64px;
+  line-height: 70px;
+  font-weight: 700;
+}
+
+.t-display-m,
+.t-display-m-em {
+  font-size: 45px;
+  line-height: 52px;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.t-display-m-em {
+  font-size: 52px;
+  line-height: 58px;
+  font-weight: 700;
+}
+
+.t-display-s,
+.t-display-s-em {
+  font-size: 36px;
+  line-height: 44px;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.t-display-s-em {
+  font-size: 40px;
+  line-height: 48px;
+  font-weight: 700;
+}
+
+.t-headline-l,
+.t-headline-l-em {
+  font-size: 32px;
+  line-height: 40px;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.t-headline-l-em {
+  font-size: 36px;
+  line-height: 44px;
+  font-weight: 700;
+}
+
+.t-headline-m,
+.t-headline-m-em {
+  font-size: 28px;
+  line-height: 36px;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.t-headline-m-em {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 700;
+}
+
+.t-headline-s {
+  font-size: 24px;
+  line-height: 32px;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.t-headline-s-em {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 700;
+}
+
+.t-title-l {
+  font-size: 22px;
+  line-height: 28px;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.t-title-l-em {
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 700;
+}
+
+.t-title-m {
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.15px;
+  font-weight: 500;
+}
+
+.t-title-m-em {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 700;
+}
+
+.t-title-s {
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.1px;
+  font-weight: 500;
+}
+
+.t-title-s-em {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 700;
+}
+
+.t-body-l {
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.15px;
+  font-weight: 400;
+}
+
+.t-body-l-em {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+}
+
+.t-body-m {
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  font-weight: 400;
+}
+
+.t-body-m-em {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.t-body-s {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  font-weight: 400;
+}
+
+.t-body-s-em {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.t-label-l,
+.t-label-l-em {
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.1px;
+  font-weight: 500;
+}
+
+.t-label-l-em {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 700;
+}
+
+.t-label-m {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.t-label-m-em {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.t-label-s {
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.t-label-s-em {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+}
+
+/* Fluid display: keep the type scale but let the hero breathe. */
+.t-fluid-display {
+  font-size: clamp(3.25rem, 9vw, 4rem);
+  line-height: 1.1;
+}
+
+/* Nav labels shift weight smoothly — variable font interpolates. */
+.x-tab-link {
+  transition: color var(--motion-micro) var(--ease-emphasized), font-weight var(--motion-micro) var(--ease-emphasized);
+}
+
+/* Gallery buttons stretch full width like the catalog rows. */
+
+/* Morphing FAB (md-fab, primary): rounded-square → stadium on hover,
+   cookie clip-path burst on press, circle + 45° icon rotation on toggle.
+   NOTE: clip-path applies only while pressed (transient) so the keyboard
+   focus ring is never permanently clipped — a persistent cookie state
+   would eat the focus indicator. */
+md-fab.fab-morph {
   border-radius: 16px;
-  background: var(--rt-pc);
-  color: var(--rt-opc);
-  border: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   transition:
-    border-radius var(--motion-morph) cubic-bezier(0.34, 1.4, 0.64, 1),
-    transform var(--motion-morph) cubic-bezier(0.34, 1.4, 0.64, 1),
-    box-shadow var(--motion-micro) var(--ease-emphasized),
-    background-color var(--transition-theme),
-    color var(--transition-theme);
+    border-radius var(--motion-morph) var(--ease-spring),
+    clip-path var(--motion-morph) var(--ease-spring),
+    transform var(--motion-morph) var(--ease-spring),
+    box-shadow var(--motion-micro) var(--ease-emphasized);
 }
-.fab-morph:hover,
-.fab-morph:focus-visible {
-  border-radius: 38px;
+
+md-fab.fab-morph:hover {
+  border-radius: 28px;
   transform: scale(1.06);
-  box-shadow: 0 8px 32px color-mix(in srgb, var(--rt-seed) 40%, transparent);
 }
-.fab-morph:active {
+
+md-fab.fab-morph:active {
   transform: scale(0.96);
+  clip-path: polygon(98% 50%, 82.9% 69%, 74% 91.6%, 50% 88%, 26% 91.6%, 17.1% 69%, 2% 50%, 17.1% 31%, 26% 8.4%, 50% 12%, 74% 8.4%, 82.9% 31%);
 }
+
+md-fab.fab-morph[data-on="true"] {
+  border-radius: 50%;
+}
+
 .fab-turn {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform var(--motion-morph) cubic-bezier(0.34, 1.4, 0.64, 1);
+  transition: transform var(--motion-morph) var(--ease-spring);
 }
-.fab-morph[data-on="true"] .fab-turn {
+
+md-fab.fab-morph[data-on="true"] .fab-turn {
   transform: rotate(45deg);
 }
+
 .fab-icon-check {
   display: none;
 }
-.fab-morph[data-on="true"] .fab-icon-plus {
+
+md-fab.fab-morph[data-on="true"] .fab-icon-plus {
   display: none;
 }
-.fab-morph[data-on="true"] .fab-icon-check {
+
+md-fab.fab-morph[data-on="true"] .fab-icon-check {
   display: block;
 }
 
 /* Reduced motion: morphs and theme fades become instant */
 @media (prefers-reduced-motion: reduce) {
+
   .theme-transition,
   .theme-transition * {
     transition-duration: 0.01ms !important;
   }
+
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation: none;
   }
+
   .fab-morph,
   .fab-turn,
-  .m3-btn::before {
+  .ctl-btn::before,
+  .x-tab-ink,
+  .x-card,
+  .x-btn,
+  .x-nav-link::after,
+  .x-sheet,
+  .x-rise,
+  .x-shape-demo {
     transition-duration: 0.01ms !important;
   }
+
+  .x-rise {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
   html {
     scroll-behavior: auto;
   }
 }
 
-/* Image drop zone */
-.drop-active {
-  border-color: var(--rt-p) !important;
-  background-color: rgba(var(--rt-pc-raw, 67,0,197), 0.15) !important;
+/* In-app motion override — mirrors the media query above. */
+.retone-app[data-motion="reduced"] .theme-transition,
+.retone-app[data-motion="reduced"] .theme-transition * {
+  transition-duration: 0.01ms !important;
 }
+
+.retone-app[data-motion="reduced"] .fab-morph,
+.retone-app[data-motion="reduced"] .fab-turn,
+.retone-app[data-motion="reduced"] .ctl-btn::before,
+.retone-app[data-motion="reduced"] .x-tab-ink,
+.retone-app[data-motion="reduced"] .x-card,
+.retone-app[data-motion="reduced"] .x-btn,
+.retone-app[data-motion="reduced"] .x-nav-link::after,
+.retone-app[data-motion="reduced"] .x-sheet,
+.retone-app[data-motion="reduced"] .x-rise,
+.retone-app[data-motion="reduced"] .x-shape-demo {
+  transition-duration: 0.01ms !important;
+}
+
+.retone-app[data-motion="reduced"] .x-rise {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Image drop zone */
 
 input[type="color"] {
   -webkit-appearance: none;
@@ -282,5 +806,737 @@ input[type="color"] {
   width: 100%;
   height: 100%;
 }
-input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-input[type="color"]::-webkit-color-swatch { border: none; border-radius: 0; }
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 0;
+}
+
+/* ── M3 Expressive layer ─────────────────────────────────────────────── */
+
+/* Expressive press: buttons stretch, then spring back. */
+.x-btn {
+  transition:
+    transform var(--motion-micro) var(--ease-spring),
+    background-color var(--transition-theme),
+    color var(--transition-theme),
+    border-color var(--transition-theme),
+    box-shadow var(--motion-micro) var(--ease-emphasized);
+}
+
+.x-btn:active {
+  transform: scaleX(1.04) scaleY(0.94);
+}
+
+/* Cards breathe: lift + expand + rounder on hover. */
+.x-card {
+  transition:
+    transform var(--motion-morph) var(--ease-spring-soft),
+    border-radius var(--motion-morph) var(--ease-spring-soft),
+    background-color var(--transition-theme),
+    border-color var(--transition-theme),
+    box-shadow var(--motion-micro) var(--ease-emphasized);
+}
+
+.x-card:hover {
+  transform: translateY(-5px) scale(1.012);
+  border-radius: var(--shape-xl);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+/* Floating pill navbar — M3 top-app-bar height, blur, elevation on scroll. */
+.x-nav {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1120px, calc(100% - 24px));
+  min-height: 64px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 24px;
+  border-radius: var(--shape-pill);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container, var(--rt-surf2)) 82%, transparent);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant, var(--rt-surf3)) 60%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Desktop tab links: text-only, exact 32px gutters via the container,
+   sliding underline ink. Inactive items sit at on-surface-variant 60%. */
+.x-tab-list {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 32px;
+}
+
+.x-tab-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 12px 2px;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--md-sys-color-on-surface-variant, var(--rt-osv)) 60%, transparent);
+  transition: color var(--motion-micro) var(--ease-emphasized);
+  user-select: none;
+}
+
+.x-tab-link:hover {
+  color: var(--md-sys-color-on-surface, var(--rt-onsf));
+}
+
+.x-tab-link[data-active="true"] {
+  color: var(--md-sys-color-on-surface, var(--rt-onsf));
+  font-weight: 600;
+}
+
+.x-tab-ink {
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  height: 3px;
+  width: 0;
+  border-radius: 9999px;
+  background: var(--md-sys-color-primary, var(--rt-p));
+  transform-origin: left center;
+  transition:
+    transform var(--motion-morph) var(--ease-spring),
+    width var(--motion-morph) var(--ease-spring),
+    background-color var(--transition-theme);
+}
+
+/* Sheet menu links keep the pill highlight (drawer semantics). */
+.x-nav-link {
+  position: relative;
+  border-radius: var(--shape-pill);
+  padding: 10px 16px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--md-sys-color-on-surface-variant, var(--rt-osv));
+  font-size: 14px;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  isolation: isolate;
+  user-select: none;
+}
+
+.x-nav-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--md-sys-color-secondary-container, var(--rt-surf3));
+  transform: scale(0.6);
+  opacity: 0;
+  transition:
+    transform var(--motion-morph) var(--ease-spring),
+    opacity var(--motion-micro) var(--ease-emphasized);
+  z-index: -1;
+}
+
+.x-nav-link:hover::after {
+  transform: scale(1);
+  opacity: 0.55;
+}
+
+.x-nav-link[data-active="true"] {
+  color: var(--md-sys-color-on-secondary-container, var(--rt-onsf));
+  font-weight: 600;
+}
+
+.x-nav-link[data-active="true"]::after {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* Seed chip: 16px swatch + label in a pill with a real button affordance.
+   user-select kills the stray text caret; the border + hover state say
+   "click me" instead. */
+.seed-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--shape-pill);
+  background: transparent;
+  border: 1px solid var(--md-sys-color-outline-variant, var(--rt-surf3));
+  color: var(--md-sys-color-on-surface-variant, var(--rt-osv));
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    border-color var(--motion-micro) var(--ease-emphasized),
+    background-color var(--motion-micro) var(--ease-emphasized);
+}
+
+.seed-chip:hover {
+  border-color: var(--md-sys-color-primary, var(--rt-p));
+  background: color-mix(in srgb, var(--md-sys-color-primary, var(--rt-p)) 8%, transparent);
+}
+
+.x-seed-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+  transition: background-color var(--transition-theme), transform var(--motion-micro) var(--ease-spring);
+}
+
+.seed-chip:hover>.x-seed-dot {
+  transform: scale(1.2);
+}
+
+/* Mobile bottom sheet + backdrop + staggered items. */
+.x-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-micro) var(--ease-emphasized);
+}
+
+.x-backdrop[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.x-sheet {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 41;
+  border-radius: var(--shape-xl);
+  background: var(--md-sys-color-surface-container-high, var(--rt-surf2));
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant, var(--rt-surf3)) 60%, transparent);
+  box-shadow: 0 -8px 48px rgba(0, 0, 0, 0.5);
+  padding: 12px;
+  transform: translateY(calc(100% + 24px));
+  transition: transform var(--motion-morph) var(--ease-spring);
+}
+
+.x-sheet[data-open="true"] {
+  transform: translateY(0);
+}
+
+.x-rise {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity var(--motion-micro) var(--ease-emphasized),
+    transform var(--motion-morph) var(--ease-spring);
+}
+
+.x-sheet[data-open="true"] .x-rise {
+  opacity: 1;
+  transform: none;
+}
+
+/* Shape-playground demo morph target. */
+.x-shape-demo {
+  transition:
+    border-radius var(--motion-morph) var(--ease-spring),
+    transform var(--motion-morph) var(--ease-spring),
+    background-color var(--transition-theme);
+}
+
+/* Hero entrance. */
+@keyframes x-hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.x-hero-in {
+  animation: x-hero-in 700ms var(--ease-emphasized-decelerate) both;
+}
+
+.x-hero-in-1 {
+  animation-delay: 60ms;
+}
+
+.x-hero-in-2 {
+  animation-delay: 140ms;
+}
+
+.x-hero-in-3 {
+  animation-delay: 220ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .x-hero-in {
+    animation: none;
+  }
+}
+
+.retone-app[data-motion="reduced"] .x-hero-in {
+  animation: none;
+}
+
+/* Hero shape composition: staggered spring entrance + independent idle. */
+@keyframes shape-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.shape-enter {
+  animation: shape-enter 0.5s var(--ease-spring) backwards;
+}
+
+@keyframes shape-idle {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-16px, 14px, 0);
+  }
+}
+
+.shape-idle {
+  animation: shape-idle 30s ease-in-out infinite alternate;
+  transition: background-color var(--transition-theme);
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .shape-enter,
+  .shape-idle {
+    animation: none;
+  }
+}
+
+.retone-app[data-motion="reduced"] .shape-enter,
+.retone-app[data-motion="reduced"] .shape-idle {
+  animation: none;
+}
+
+/* Expressive M3 Shape Canvas animations */
+@keyframes float-gentle {
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-14px) rotate(4deg);
+  }
+}
+
+@keyframes float-reverse {
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(16px) rotate(-5deg);
+  }
+}
+
+@keyframes float-slow {
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg) scale(1);
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(-3deg) scale(1.03);
+  }
+}
+
+.animate-float-gentle {
+  animation: float-gentle 7s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: float-reverse 9s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: float-slow 11s ease-in-out infinite;
+}
+
+/* Material 3 Expressive Dynamic Keyframes */
+@keyframes m3-shape-morph {
+
+  0%,
+  100% {
+    border-radius: 28px;
+  }
+
+  33% {
+    border-radius: 40px 12px 40px 12px;
+  }
+
+  66% {
+    border-radius: 12px 40px 12px 40px;
+  }
+}
+
+@keyframes m3-expressive-bounce {
+
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+
+  30% {
+    transform: scale(1.06) rotate(-1.5deg);
+  }
+
+  60% {
+    transform: scale(0.97) rotate(1deg);
+  }
+
+  80% {
+    transform: scale(1.02) rotate(-0.5deg);
+  }
+}
+
+.animate-m3-morph {
+  animation: m3-shape-morph 5s var(--ease-m3-expressive-spring) infinite;
+}
+
+.animate-m3-bounce {
+  animation: m3-expressive-bounce 2s var(--ease-m3-expressive-spring) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .animate-float-gentle,
+  .animate-float-reverse,
+  .animate-float-slow,
+  .animate-m3-morph,
+  .animate-m3-bounce {
+    animation: none;
+  }
+}
+
+.retone-app[data-motion="reduced"] .animate-float-gentle,
+.retone-app[data-motion="reduced"] .animate-float-reverse,
+.retone-app[data-motion="reduced"] .animate-float-slow,
+.retone-app[data-motion="reduced"] .animate-m3-morph,
+.retone-app[data-motion="reduced"] .animate-m3-bounce {
+  animation: none;
+}
+
+/* Specular shine & 3D crystal lighting */
+@keyframes specular-sweep {
+  0% {
+    transform: translateX(-100%) rotate(45deg);
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 0.6;
+  }
+
+  40%,
+  100% {
+    transform: translateX(200%) rotate(45deg);
+    opacity: 0;
+  }
+}
+
+.animate-specular {
+  animation: specular-sweep 6s cubic-bezier(0.2, 0, 0, 1) infinite;
+}
+
+.glass-plane {
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.35), inset 0 1px 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+
+
+/* Contained pull-to-refresh indicator: fixed layer that never dims or
+   blocks the page. The pop drops in from above the viewport with spring
+   overshoot, rests below the navbar, and springs back out on exit. */
+.refresh-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.refresh-pop {
+  margin-top: 96px;
+  transform: translateY(-160%) scale(0.55);
+  opacity: 0;
+  transition:
+    transform 450ms var(--ease-spring),
+    opacity 300ms var(--ease-emphasized);
+}
+
+.refresh-pop[data-state="in"] {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.refresh-pop[data-state="out"] {
+  transform: translateY(-160%) scale(0.55);
+  opacity: 0;
+}
+
+.refresh-container {
+  width: 64px;
+  height: 64px;
+  border-radius: 9999px;
+  background: var(--md-sys-color-primary-container, var(--rt-pc));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refresh-pop {
+    transition: none;
+  }
+}
+
+.retone-app[data-motion="reduced"] .refresh-pop {
+  transition: none;
+}
+
+/* Shape-morph loader morphs via the inline clip-path swap. */
+.shape-loader {
+  transition: clip-path 380ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shape-loader {
+    transition: none;
+  }
+}
+
+.retone-app[data-motion="reduced"] .shape-loader {
+  transition: none;
+}
+
+/* ── Adaptive: M3 window size classes ──────────────────────────────────
+   Compact (<600px): stack, de-emphasized decor, tighter panels, full-width
+   CTAs. Medium (600–839px) deliberately keeps the single-column flow with
+   full type scale — density over reflow. Expanded (≥840px) uses the
+   multi-column arrangements. */
+@media (max-width: 599px) {
+  .retone-app section {
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+
+  .retone-app section#top {
+    padding-top: 120px;
+  }
+
+  .retone-app section#playground {
+    padding-top: 104px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .shape-idle {
+    opacity: 0.16 !important;
+  }
+
+  .btn-group {
+    width: 100%;
+  }
+
+  .btn-group>* {
+    flex: 1;
+  }
+}
+
+/* ── Immersive Creative Hero & 3D Lighting Enhancements ──────────────── */
+.glass-plane {
+  background: color-mix(in srgb, var(--md-sys-color-surface-container, #1e1f25) 75%, transparent);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant, rgba(255, 255, 255, 0.15)) 40%, transparent);
+  box-shadow:
+    0 24px 64px -12px rgba(0, 0, 0, 0.4),
+    0 0 0 1px inset color-mix(in srgb, var(--md-sys-color-surface-tint, #fff) 12%, transparent),
+    0 1px 2px inset rgba(255, 255, 255, 0.15);
+}
+
+@keyframes specular-sweep {
+  0% {
+    transform: translateX(-100%) skewX(-20deg);
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 0.6;
+  }
+
+  60% {
+    opacity: 0.6;
+  }
+
+  100% {
+    transform: translateX(250%) skewX(-20deg);
+    opacity: 0;
+  }
+}
+
+.animate-specular {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-specular::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.25) 50%,
+      transparent 100%);
+  animation: specular-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes float-gentle {
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-14px) rotate(2deg);
+  }
+}
+
+@keyframes float-gentle-reverse {
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(14px) rotate(-2.5deg);
+  }
+}
+
+.animate-float {
+  animation: float-gentle 7s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: float-gentle-reverse 8.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .animate-specular::after,
+  .animate-float,
+  .animate-float-reverse {
+    animation: none !important;
+  }
+}
+
+.retone-app[data-motion="reduced"] .animate-specular::after,
+.retone-app[data-motion="reduced"] .animate-float,
+.retone-app[data-motion="reduced"] .animate-float-reverse,
+.retone-app[data-motion="reduced"] .animate-m3-morph {
+  animation: none !important;
+}
+
+@keyframes m3-shape-morph {
+
+  0%,
+  100% {
+    border-radius: 28px;
+    transform: scale(1) rotate(0deg);
+  }
+
+  33% {
+    border-radius: 40px 12px 40px 12px;
+    transform: scale(1.05) rotate(5deg);
+  }
+
+  66% {
+    border-radius: 12px 40px 12px 40px;
+    transform: scale(0.96) rotate(-5deg);
+  }
+}
+
+.animate-m3-morph {
+  animation: m3-shape-morph 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-m3-morph {
+    animation: none !important;
+  }
+}
+
+/* Scalloped organic floating indicator for Morphing Palette Blade */
+.scalloped-indicator {
+  border-radius: 24px 8px 24px 8px;
+  transition: all 0.35s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.scalloped-indicator:hover {
+  border-radius: 28px;
+}
+
+/* Inverting asymmetrical corners for pedestal buttons */
+.btn-asym-invert {
+  border-radius: 32px 12px 32px 12px;
+  transition: border-radius 0.35s cubic-bezier(0.2, 0, 0, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+
+.btn-asym-invert:hover {
+  border-radius: 12px 32px 12px 32px;
+}
